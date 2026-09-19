@@ -3,9 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>স্মার্ট মেস ম্যানেজার</title>
+  <title>স্মার্ট মেস ম্যানেজার (Cloud Live)</title>
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Firebase SDK (v9 Compat Mode) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
   <style>
     @media print {
       .no-print { display: none !important; }
@@ -23,7 +30,7 @@
           <i data-lucide="utensils" class="w-8 h-8"></i>
         </div>
         <h2 class="text-2xl font-bold text-slate-900">মেস ম্যানেজার লগইন</h2>
-        <p class="text-sm text-slate-500 mt-1">অ্যাডমিন বা মেম্বার হিসেবে প্রবেশ করুন</p>
+        <p class="text-sm text-slate-500 mt-1">লাইভ ক্লাউড অ্যাকাউন্টে প্রবেশ করুন</p>
       </div>
 
       <div class="flex bg-slate-100 p-1 rounded-xl mb-5">
@@ -37,7 +44,7 @@
 
       <form id="adminLoginForm" class="space-y-4" onsubmit="handleAdminLogin(event)">
         <div>
-          <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">ইমেইল বা মোবাইল নম্বর</label>
+          <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">ইউজারনেম</label>
           <input type="text" id="adminIdentifier" value="admin" required class="w-full px-3 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm outline-none">
         </div>
         <div>
@@ -64,7 +71,7 @@
 
   <!-- Universal Edit Modal -->
   <div id="editModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 border border-slate-100 max-h-[90vh] overflow-y-auto">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-lg p-6 border border-slate-100 max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center mb-4">
         <h3 id="editModalTitle" class="text-lg font-bold text-slate-800 flex items-center gap-2">
           <i data-lucide="pencil" class="w-5 h-5 text-indigo-600"></i> এডিট করুন
@@ -89,7 +96,10 @@
       <div class="flex items-center space-x-3">
         <i data-lucide="utensils" class="w-7 h-7"></i>
         <div>
-          <h1 class="text-xl sm:text-2xl font-bold tracking-wide">স্মার্ট মেস ম্যানেজার</h1>
+          <div class="flex items-center gap-2">
+            <h1 class="text-xl sm:text-2xl font-bold tracking-wide">স্মার্ট মেস ম্যানেজার</h1>
+            <span class="bg-emerald-400 text-slate-950 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase">Live Sync</span>
+          </div>
           <p id="userRoleBadge" class="text-xs text-indigo-100 flex items-center gap-1.5 font-medium"></p>
         </div>
       </div>
@@ -154,7 +164,6 @@
 
     <!-- Admin Entry Forms -->
     <div id="adminActionPanels" class="admin-only grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 no-print">
-      
       <!-- Add Member -->
       <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
         <h2 class="text-md font-bold mb-3 flex items-center gap-2 text-slate-800">
@@ -207,7 +216,6 @@
           <button type="submit" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 rounded-lg text-sm transition">খরচ যোগ করুন</button>
         </form>
       </div>
-
     </div>
 
     <!-- Daily Meal Entry Module -->
@@ -356,7 +364,26 @@
   </main>
 
   <script>
-    let state = JSON.parse(localStorage.getItem('messData')) || {
+    // ================== FIREBASE CONFIGURATION ================== //
+    const firebaseConfig = {
+      apiKey: "AIzaSyABM1bT_h8Mz8dby43DlQRxMzHBJSW7Pik",
+      authDomain: "mess-c3924.firebaseapp.com",
+      projectId: "mess-c3924",
+      storageBucket: "mess-c3924.firebasestorage.app",
+      messagingSenderId: "199922768862",
+      appId: "1:199922768862:web:444e2f2d1403309923db4f",
+      measurementId: "G-XYSVXZ7J4Q"
+    };
+
+    // Initialize Firebase
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
+    const docRef = db.collection("messData").doc("currentMonth");
+
+    // Local State Cache
+    let state = {
       members: [],
       deposits: [],
       bazars: [],
@@ -366,11 +393,27 @@
     let authSession = JSON.parse(sessionStorage.getItem('messAuth')) || null;
     let currentEditTarget = null;
 
-    function saveState() {
-      localStorage.setItem('messData', JSON.stringify(state));
+    // Realtime Cloud Synchronization Listener
+    docRef.onSnapshot((doc) => {
+      if (doc.exists) {
+        state = doc.data() || { members: [], deposits: [], bazars: [], meals: [] };
+      } else {
+        docRef.set(state);
+      }
       render();
+    }, (error) => {
+      console.error("Firebase sync error:", error);
+    });
+
+    // Cloud Data Saver
+    function saveState() {
+      docRef.set(state).catch((err) => {
+        alert("ইন্টারনেট কানেকশন চেক করুন! ডেটা সেভ হয়নি।");
+        console.error(err);
+      });
     }
 
+    // Role & Auth Handlers
     function setRoleTab(role) {
       const tabAdmin = document.getElementById('tabAdmin');
       const tabMember = document.getElementById('tabMember');
@@ -408,12 +451,12 @@
       e.preventDefault();
       const identifier = document.getElementById('memberIdentifier').value.trim().toLowerCase();
 
-      const memberFound = state.members.find(m => 
+      const memberFound = (state.members || []).find(m => 
         m.name.toLowerCase() === identifier || 
         (m.phone && m.phone.toLowerCase() === identifier)
       );
 
-      if (memberFound || state.members.length === 0) {
+      if (memberFound || (state.members || []).length === 0) {
         authSession = { role: 'member', user: memberFound ? memberFound.name : identifier };
         sessionStorage.setItem('messAuth', JSON.stringify(authSession));
         applyAuthView();
@@ -451,20 +494,21 @@
     }
 
     function getTotals() {
-      const totalDeposit = state.deposits.reduce((acc, cur) => acc + Number(cur.amount), 0);
-      const totalCost = state.bazars.reduce((acc, cur) => acc + Number(cur.amount), 0);
+      const totalDeposit = (state.deposits || []).reduce((acc, cur) => acc + Number(cur.amount), 0);
+      const totalCost = (state.bazars || []).reduce((acc, cur) => acc + Number(cur.amount), 0);
       
-      const fundBazar = state.bazars
+      const fundBazar = (state.bazars || [])
         .filter(b => b.source === 'fund' || !b.source)
         .reduce((acc, cur) => acc + Number(cur.amount), 0);
       
       const fundBalance = totalDeposit - fundBazar;
-      const totalMeals = state.meals.reduce((acc, cur) => acc + (Number(cur.breakfast) + Number(cur.lunch) + Number(cur.dinner)), 0);
+      const totalMeals = (state.meals || []).reduce((acc, cur) => acc + (Number(cur.breakfast) + Number(cur.lunch) + Number(cur.dinner)), 0);
       const mealRate = totalMeals > 0 ? (totalCost / totalMeals) : 0;
 
       return { totalDeposit, totalCost, fundBalance, totalMeals, mealRate };
     }
 
+    // Modal Edit Controls
     function closeEditModal() {
       document.getElementById('editModal').classList.add('hidden');
       currentEditTarget = null;
@@ -496,7 +540,7 @@
           <div>
             <label class="block text-xs font-semibold text-slate-500 mb-1">সদস্য</label>
             <select id="edit_depositMember" class="w-full px-3 py-2 border rounded-lg text-sm">
-              ${state.members.map(m => `<option value="${m.id}" ${m.id === item.memberId ? 'selected' : ''}>${m.name}</option>`).join('')}
+              ${(state.members || []).map(m => `<option value="${m.id}" ${m.id === item.memberId ? 'selected' : ''}>${m.name}</option>`).join('')}
             </select>
           </div>
           <div>
@@ -526,7 +570,7 @@
           <div>
             <label class="block text-xs font-semibold text-slate-500 mb-1">বাজারকারী সদস্য</label>
             <select id="edit_bazarMember" class="w-full px-3 py-2 border rounded-lg text-sm">
-              ${state.members.map(m => `<option value="${m.id}" ${m.id === item.memberId ? 'selected' : ''}>${m.name}</option>`).join('')}
+              ${(state.members || []).map(m => `<option value="${m.id}" ${m.id === item.memberId ? 'selected' : ''}>${m.name}</option>`).join('')}
             </select>
           </div>
           <div>
@@ -571,7 +615,7 @@
         `;
       } else if (type === 'memberMeals') {
         const member = state.members.find(m => m.id === id);
-        const memberMeals = state.meals.filter(m => m.memberId === id);
+        const memberMeals = (state.meals || []).filter(m => m.memberId === id);
         const currentTotal = memberMeals.reduce((acc, cur) => acc + (Number(cur.breakfast) + Number(cur.lunch) + Number(cur.dinner)), 0);
 
         title.innerText = `${member.name}-এর খাওয়া মোট মিল এডিট`;
@@ -584,17 +628,6 @@
             <label class="block text-xs font-semibold text-slate-600 mb-1">নতুন কাঙ্ক্ষিত মোট মিল সংখ্যা</label>
             <input type="number" step="0.5" id="edit_directTotalMeals" value="${currentTotal}" min="0" required 
               class="w-full px-3 py-2 border rounded-lg text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500">
-          </div>
-          <div class="mt-4 pt-3 border-t border-slate-100">
-            <p class="text-xs font-semibold text-slate-600 mb-2">অথবা তারিখভিত্তিক কোনো দিনের মিল ঠিক করতে চান?</p>
-            <div class="max-h-40 overflow-y-auto divide-y divide-slate-100 text-xs">
-              ${memberMeals.length > 0 ? memberMeals.map(m => `
-                <div class="py-1.5 flex justify-between items-center">
-                  <span>${m.date}: সকাল(${m.breakfast}), দুপুর(${m.lunch}), রাত(${m.dinner}) = <b>${(Number(m.breakfast)+Number(m.lunch)+Number(m.dinner)).toFixed(1)}</b></span>
-                  <button type="button" onclick="closeEditModal(); openEditModal('meal', '${m.id}')" class="text-indigo-600 hover:underline">এডিট</button>
-                </div>
-              `).join('') : '<p class="text-slate-400 py-1">কোনো তারিখভিত্তিক এন্ট্রি নেই</p>'}
-            </div>
           </div>
         `;
       }
@@ -635,18 +668,17 @@
         item.dinner = parseFloat(document.getElementById('edit_mealD').value) || 0;
       } else if (type === 'memberMeals') {
         const newTotal = parseFloat(document.getElementById('edit_directTotalMeals').value);
-        const memberMeals = state.meals.filter(m => m.memberId === id);
+        const memberMeals = (state.meals || []).filter(m => m.memberId === id);
         const currentTotal = memberMeals.reduce((acc, cur) => acc + (Number(cur.breakfast) + Number(cur.lunch) + Number(cur.dinner)), 0);
         const diff = newTotal - currentTotal;
 
         if (diff !== 0) {
-          // অ্যাডজাস্টমেন্ট রেকর্ড যোগ করা হচ্ছে
           state.meals.push({
             id: Date.now().toString(),
             memberId: id,
             date: new Date().toISOString().split('T')[0],
             breakfast: 0,
-            lunch: diff, // সরাসরি ব্যালেন্স করে দেওয়া হলো
+            lunch: diff,
             dinner: 0,
             isAdjustment: true
           });
@@ -655,7 +687,7 @@
 
       closeEditModal();
       saveState();
-      alert('সফলভাবে আপডেট করা হয়েছে!');
+      alert('ক্লাউডে সফলভাবে আপডেট করা হয়েছে!');
     }
 
     function printSingleMemberReport(memberId) {
@@ -664,13 +696,13 @@
 
       const { mealRate } = getTotals();
 
-      const memberDeposits = state.deposits.filter(d => d.memberId === memberId);
+      const memberDeposits = (state.deposits || []).filter(d => d.memberId === memberId);
       const totalDeposit = memberDeposits.reduce((acc, cur) => acc + Number(cur.amount), 0);
 
-      const personalBazars = state.bazars.filter(b => b.memberId === memberId && b.source === 'personal');
+      const personalBazars = (state.bazars || []).filter(b => b.memberId === memberId && b.source === 'personal');
       const totalPersonalBazar = personalBazars.reduce((acc, cur) => acc + Number(cur.amount), 0);
 
-      const memberMeals = state.meals
+      const memberMeals = (state.meals || [])
         .filter(m => m.memberId === memberId)
         .sort((a, b) => new Date(a.date) - new Date(b.date));
       const totalMeals = memberMeals.reduce((acc, cur) => acc + (Number(cur.breakfast) + Number(cur.lunch) + Number(cur.dinner)), 0);
@@ -793,10 +825,10 @@
     function deleteMember(memberId, memberName) {
       if (!authSession || authSession.role !== 'admin') return;
       if (confirm(`আপনি কি নিশ্চিত যে "${memberName}"-কে ডিলিট করতে চান?`)) {
-        state.members = state.members.filter(m => m.id !== memberId);
-        state.deposits = state.deposits.filter(d => d.memberId !== memberId);
-        state.bazars = state.bazars.filter(b => b.memberId !== memberId);
-        state.meals = state.meals.filter(m => m.memberId !== memberId);
+        state.members = (state.members || []).filter(m => m.id !== memberId);
+        state.deposits = (state.deposits || []).filter(d => d.memberId !== memberId);
+        state.bazars = (state.bazars || []).filter(b => b.memberId !== memberId);
+        state.meals = (state.meals || []).filter(m => m.memberId !== memberId);
         saveState();
       }
     }
@@ -804,7 +836,7 @@
     function deleteDeposit(depositId) {
       if (!authSession || authSession.role !== 'admin') return;
       if (confirm('এই জমার রেকর্ডটি মুছে ফেলতে চান?')) {
-        state.deposits = state.deposits.filter(d => d.id !== depositId);
+        state.deposits = (state.deposits || []).filter(d => d.id !== depositId);
         saveState();
       }
     }
@@ -812,7 +844,7 @@
     function deleteBazar(bazarId) {
       if (!authSession || authSession.role !== 'admin') return;
       if (confirm('এই বাজার খরচের রেকর্ডটি মুছে ফেলতে চান?')) {
-        state.bazars = state.bazars.filter(b => b.id !== bazarId);
+        state.bazars = (state.bazars || []).filter(b => b.id !== bazarId);
         saveState();
       }
     }
@@ -820,7 +852,7 @@
     function deleteMeal(mealId) {
       if (!authSession || authSession.role !== 'admin') return;
       if (confirm('এই মিল এন্ট্রিটি মুছে ফেলতে চান?')) {
-        state.meals = state.meals.filter(m => m.id !== mealId);
+        state.meals = (state.meals || []).filter(m => m.id !== mealId);
         saveState();
       }
     }
@@ -830,7 +862,7 @@
       const currentVal = filterSelect.value;
       filterSelect.innerHTML = '<option value="">সদস্য সিলেক্ট করুন</option>';
       
-      state.members.forEach(member => {
+      (state.members || []).forEach(member => {
         const opt = document.createElement('option');
         opt.value = member.id;
         opt.innerText = member.name;
@@ -852,7 +884,7 @@
         return;
       }
 
-      const memberMeals = state.meals
+      const memberMeals = (state.meals || [])
         .filter(m => m.memberId === memberId)
         .sort((a, b) => new Date(a.date) - new Date(b.date));
 
@@ -900,7 +932,7 @@
       const tbody = document.getElementById('depositTableBody');
       tbody.innerHTML = '';
 
-      if (state.deposits.length === 0) {
+      if (!state.deposits || state.deposits.length === 0) {
         tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-slate-400">কোনো জমার রেকর্ড নেই।</td></tr>`;
         return;
       }
@@ -909,7 +941,7 @@
       const isAdmin = authSession && authSession.role === 'admin';
 
       sortedDeposits.forEach(d => {
-        const member = state.members.find(m => m.id === d.memberId);
+        const member = (state.members || []).find(m => m.id === d.memberId);
         const memberName = member ? member.name : 'অজানা সদস্য';
         const row = document.createElement('tr');
         row.className = "hover:bg-slate-50 transition";
@@ -934,7 +966,7 @@
       const tbody = document.getElementById('bazarTableBody');
       tbody.innerHTML = '';
 
-      if (state.bazars.length === 0) {
+      if (!state.bazars || state.bazars.length === 0) {
         tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400">কোনো বাজার খরচের রেকর্ড নেই।</td></tr>`;
         return;
       }
@@ -943,7 +975,7 @@
       const isAdmin = authSession && authSession.role === 'admin';
 
       sortedBazars.forEach(b => {
-        const member = state.members.find(m => m.id === b.memberId);
+        const member = (state.members || []).find(m => m.id === b.memberId);
         const memberName = member ? member.name : 'মেস ফান্ড';
         const isPersonal = b.source === 'personal';
         const row = document.createElement('tr');
@@ -990,7 +1022,7 @@
         const selectedVal = select.value;
         const defaultText = select.id === 'bazarMember' ? 'বাজারকারী সদস্য সিলেক্ট করুন' : 'সদস্য সিলেক্ট করুন';
         select.innerHTML = `<option value="">${defaultText}</option>`;
-        state.members.forEach(member => {
+        (state.members || []).forEach(member => {
           const opt = document.createElement('option');
           opt.value = member.id;
           opt.innerText = member.name;
@@ -1007,7 +1039,7 @@
       const tbody = document.getElementById('summaryTableBody');
       tbody.innerHTML = '';
 
-      if (state.members.length === 0) {
+      if (!state.members || state.members.length === 0) {
         tbody.innerHTML = `<tr><td colspan="8" class="text-center py-6 text-slate-400">কোনো সদস্য পাওয়া যায়নি।</td></tr>`;
         return;
       }
@@ -1015,15 +1047,15 @@
       const isAdmin = authSession && authSession.role === 'admin';
 
       state.members.forEach(member => {
-        const memberDeposit = state.deposits
+        const memberDeposit = (state.deposits || [])
           .filter(d => d.memberId === member.id)
           .reduce((acc, cur) => acc + Number(cur.amount), 0);
 
-        const memberPersonalBazar = state.bazars
+        const memberPersonalBazar = (state.bazars || [])
           .filter(b => b.memberId === member.id && b.source === 'personal')
           .reduce((acc, cur) => acc + Number(cur.amount), 0);
 
-        const memberMeals = state.meals
+        const memberMeals = (state.meals || [])
           .filter(m => m.memberId === member.id)
           .reduce((acc, cur) => acc + (Number(cur.breakfast) + Number(cur.lunch) + Number(cur.dinner)), 0);
 
@@ -1064,6 +1096,7 @@
       lucide.createIcons();
     }
 
+    // Form Event Handlers
     document.getElementById('memberForm').addEventListener('submit', (e) => {
       e.preventDefault();
       if (!authSession || authSession.role !== 'admin') return;
@@ -1072,11 +1105,12 @@
       const phone = document.getElementById('memberPhone').value.trim();
 
       if (name) {
+        state.members = state.members || [];
         state.members.push({ id: Date.now().toString(), name, phone: phone || '' });
         document.getElementById('memberName').value = '';
         document.getElementById('memberPhone').value = '';
         saveState();
-        alert('সদস্য সফলভাবে যুক্ত করা হয়েছে!');
+        alert('সদস্য ক্লাউডে সফলভাবে যুক্ত করা হয়েছে!');
       }
     });
 
@@ -1090,11 +1124,12 @@
       const note = document.getElementById('depositNote').value.trim();
 
       if (memberId && amount > 0 && date) {
+        state.deposits = state.deposits || [];
         state.deposits.push({ id: Date.now().toString(), memberId, amount, date, note: note || 'নগদ' });
         document.getElementById('depositAmount').value = '';
         document.getElementById('depositNote').value = '';
         saveState();
-        alert('জমা সফলভাবে সেভ হয়েছে!');
+        alert('জমা ক্লাউডে সফলভাবে সেভ হয়েছে!');
       }
     });
 
@@ -1110,6 +1145,7 @@
       const note = document.getElementById('bazarNote').value.trim();
 
       if (memberId && title && amount > 0 && date) {
+        state.bazars = state.bazars || [];
         state.bazars.push({ 
           id: Date.now().toString(), 
           source,
@@ -1123,7 +1159,7 @@
         document.getElementById('bazarAmount').value = '';
         document.getElementById('bazarNote').value = '';
         saveState();
-        alert('বাজার খরচ যোগ হয়েছে!');
+        alert('বাজার খরচ ক্লাউডে যোগ হয়েছে!');
       }
     });
 
@@ -1138,18 +1174,18 @@
       const dinner = parseFloat(document.getElementById('mealDinner').value) || 0;
 
       if (memberId && date) {
+        state.meals = state.meals || [];
         state.meals.push({ id: Date.now().toString(), memberId, date, breakfast, lunch, dinner });
         saveState();
-        alert('মিল এন্ট্রি সফল হয়েছে!');
+        alert('মিল এন্ট্রি ক্লাউডে সফল হয়েছে!');
       }
     });
 
     function resetAllData() {
       if (!authSession || authSession.role !== 'admin') return;
       if (confirm('সমস্ত ডেটা রিসেট করতে চান? এই প্রক্রিয়াটি ফেরানো যাবে না।')) {
-        localStorage.removeItem('messData');
         state = { members: [], deposits: [], bazars: [], meals: [] };
-        render();
+        saveState();
       }
     }
 
