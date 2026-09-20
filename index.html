@@ -140,7 +140,7 @@
         </div>
       </div>
 
-      <!-- Year & Month Pickers -->
+      <!-- Year & Month Pickers and Actions -->
       <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
         <div class="flex items-center bg-white/15 px-3 py-1.5 rounded-xl border border-white/20 backdrop-blur-xs gap-2">
           <div class="flex items-center">
@@ -158,6 +158,10 @@
         </div>
 
         <div class="no-print flex items-center space-x-1.5">
+          <!-- Direct Recovery Button -->
+          <button onclick="forceRecoverOldData()" class="admin-only bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition shadow-sm" title="পুরনো সব হিসাব উদ্ধার করুন">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> আগের হিসাব আনুন
+          </button>
           <button onclick="openPasswordModal()" class="admin-only bg-indigo-700 hover:bg-indigo-800 text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition">
             <i data-lucide="key" class="w-3.5 h-3.5"></i> পাসওয়ার্ড
           </button>
@@ -635,7 +639,35 @@
       attachFirestoreListener(periodKey);
     }
 
-    // Direct Auto-Recovery from old 'messData/currentMonth' if month is blank
+    // Direct Forced Recovery Button Function
+    function forceRecoverOldData() {
+      const periodKey = getActivePeriodKey();
+      const docRef = db.collection("messMonthlyData").doc(periodKey);
+
+      db.collection("messData").doc("currentMonth").get().then((oldDoc) => {
+        if (oldDoc.exists) {
+          const oldData = oldDoc.data() || {};
+          state.members = oldData.members || [];
+          state.deposits = oldData.deposits || [];
+          state.bazars = oldData.bazars || [];
+          state.meals = oldData.meals || [];
+          state.rents = oldData.rents || [];
+          state.adminPass = oldData.adminPass || "123456";
+          state.permanentNote = oldData.permanentNote || "";
+
+          docRef.set(state).then(() => {
+            alert("অভিনন্দন! আপনার আগের সমস্ত সদস্য, মিল ও খরচের হিসাব সফলভাবে উদ্ধার হয়েছে!");
+            render();
+          });
+        } else {
+          alert("পুরনো ফাইলে কোনো ডেটা পাওয়া যায়নি!");
+        }
+      }).catch(err => {
+        alert("ডেটা উদ্ধারে সমস্যা হয়েছে: " + err.message);
+      });
+    }
+
+    // Auto-Recovery on Load
     function attachFirestoreListener(periodKey) {
       if (unsubscribeFirestore) {
         unsubscribeFirestore();
@@ -645,24 +677,26 @@
 
       docRef.get().then((doc) => {
         const data = doc.data() || {};
-        const hasData = data.members && data.members.length > 0;
+        const hasData = (data.members && data.members.length > 0) || (data.deposits && data.deposits.length > 0) || (data.bazars && data.bazars.length > 0);
 
-        // If no members in this monthly collection, pull directly from old 'messData/currentMonth'
+        // If current month document is blank, automatically copy from old 'messData/currentMonth'
         if (!hasData) {
           db.collection("messData").doc("currentMonth").get().then((oldDoc) => {
             if (oldDoc.exists) {
               const oldData = oldDoc.data() || {};
-              state.members = oldData.members || [];
-              state.deposits = oldData.deposits || [];
-              state.bazars = oldData.bazars || [];
-              state.meals = oldData.meals || [];
-              state.rents = oldData.rents || [];
-              state.adminPass = oldData.adminPass || "123456";
-              state.permanentNote = oldData.permanentNote || "";
-              
-              docRef.set(state).then(() => {
-                render();
-              });
+              if ((oldData.members && oldData.members.length > 0) || (oldData.bazars && oldData.bazars.length > 0)) {
+                state.members = oldData.members || [];
+                state.deposits = oldData.deposits || [];
+                state.bazars = oldData.bazars || [];
+                state.meals = oldData.meals || [];
+                state.rents = oldData.rents || [];
+                state.adminPass = oldData.adminPass || "123456";
+                state.permanentNote = oldData.permanentNote || "";
+                
+                docRef.set(state).then(() => {
+                  render();
+                });
+              }
             }
           });
         }
@@ -671,16 +705,14 @@
       unsubscribeFirestore = docRef.onSnapshot((doc) => {
         if (doc.exists) {
           const data = doc.data() || {};
-          if (data.members && data.members.length > 0) {
-            state.members = data.members || [];
-            state.deposits = data.deposits || [];
-            state.bazars = data.bazars || [];
-            state.meals = data.meals || [];
-            state.rents = data.rents || [];
-            if (data.adminPass) state.adminPass = data.adminPass;
-            if (data.permanentNote !== undefined) state.permanentNote = data.permanentNote;
-            render();
-          }
+          state.members = data.members || [];
+          state.deposits = data.deposits || [];
+          state.bazars = data.bazars || [];
+          state.meals = data.meals || [];
+          state.rents = data.rents || [];
+          if (data.adminPass) state.adminPass = data.adminPass;
+          if (data.permanentNote !== undefined) state.permanentNote = data.permanentNote;
+          render();
         }
 
         const noteInput = document.getElementById('messPermanentNote');
@@ -1171,6 +1203,7 @@
             </div>
           </div>
 
+          <!-- Deposit Statement -->
           <div class="section-title">নগদ জমার হিস্ট্রি ও স্টেটমেন্ট (Deposit List)</div>
           <table>
             <thead>
@@ -1197,6 +1230,7 @@
             </tfoot>
           </table>
 
+          <!-- Bazar Statement -->
           <div class="section-title">বাজার খরচের স্টেটমেন্ট (Bazar Expense List)</div>
           <table>
             <thead>
@@ -1219,6 +1253,7 @@
             </tbody>
           </table>
 
+          <!-- Daily Meal Log -->
           <div class="section-title">দৈনিক মিল হিস্ট্রি (Daily Meal Log)</div>
           <table>
             <thead>
@@ -1589,7 +1624,7 @@
       tbody.innerHTML = '';
 
       if (!state.members || state.members.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-6 text-slate-400">এই মাসে কোনো সদস্য পাওয়া যায়নি। উপরে 'সদস্য যোগ করুন' থেকে যোগ করুন।</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-6 text-slate-400">এই মাসে কোনো সদস্য পাওয়া যায়নি। উপরে 'আগের হিসাব আনুন' বাটনটিতে চাপ দিন।</td></tr>`;
         return;
       }
 
