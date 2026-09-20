@@ -18,7 +18,6 @@
       .no-print { display: none !important; }
       body { background-color: #fff !important; font-size: 12px; }
       header { box-shadow: none !important; margin-bottom: 15px !important; }
-      .print-page-break { page-break-before: always; }
       table { width: 100% !important; border: 1px solid #cbd5e1 !important; }
       th, td { border: 1px solid #cbd5e1 !important; padding: 4px 6px !important; }
     }
@@ -163,7 +162,7 @@
             <i data-lucide="key" class="w-3.5 h-3.5"></i> পাসওয়ার্ড
           </button>
           <button onclick="window.print()" class="bg-white/20 hover:bg-white/30 text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition">
-            <i data-lucide="printer" class="w-3.5 h-3.5"></i> পুরো শিট প্রিন্ট
+            <i data-lucide="printer" class="w-3.5 h-3.5"></i> প্রিন্ট
           </button>
           <button id="btnResetAll" onclick="resetCurrentPeriodData()" class="admin-only bg-rose-500 hover:bg-rose-600 text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition">
             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> এই মাস রিসেট
@@ -556,7 +555,6 @@
       measurementId: "G-XYSVXZ7J4Q"
     };
 
-    // Initialize Firebase
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
     }
@@ -638,6 +636,7 @@
       attachFirestoreListener(periodKey);
     }
 
+    // Attach Listener & Auto-Recover Previous Data from "messData/currentMonth" if empty
     function attachFirestoreListener(periodKey) {
       if (unsubscribeFirestore) {
         unsubscribeFirestore();
@@ -659,20 +658,39 @@
           if (state.members.length > 0) {
             globalMembers = state.members;
           }
+          render();
         } else {
-          state.members = globalMembers.length > 0 ? [...globalMembers] : [];
-          state.deposits = [];
-          state.bazars = [];
-          state.meals = [];
-          state.rents = [];
-          docRef.set({
-            members: state.members,
-            deposits: [],
-            bazars: [],
-            meals: [],
-            rents: [],
-            adminPass: state.adminPass || "123456",
-            permanentNote: state.permanentNote || ""
+          // If empty, check if older collection "messData/currentMonth" has the data!
+          db.collection("messData").doc("currentMonth").get().then((oldDoc) => {
+            if (oldDoc.exists) {
+              const oldData = oldDoc.data() || {};
+              state.members = oldData.members || [];
+              state.deposits = oldData.deposits || [];
+              state.bazars = oldData.bazars || [];
+              state.meals = oldData.meals || [];
+              state.rents = oldData.rents || [];
+              state.adminPass = oldData.adminPass || "123456";
+              state.permanentNote = oldData.permanentNote || "";
+
+              // Save to current monthly doc so it restores permanently
+              docRef.set(state);
+            } else {
+              state.members = globalMembers.length > 0 ? [...globalMembers] : [];
+              state.deposits = [];
+              state.bazars = [];
+              state.meals = [];
+              state.rents = [];
+              docRef.set({
+                members: state.members,
+                deposits: [],
+                bazars: [],
+                meals: [],
+                rents: [],
+                adminPass: state.adminPass || "123456",
+                permanentNote: state.permanentNote || ""
+              });
+            }
+            render();
           });
         }
 
@@ -680,8 +698,6 @@
         if (noteInput && document.activeElement !== noteInput) {
           noteInput.value = state.permanentNote || "";
         }
-
-        render();
       }, (error) => {
         console.error("Firebase sync error:", error);
       });
@@ -1083,7 +1099,6 @@
       alert('ক্লাউডে সফলভাবে আপডেট করা হয়েছে!');
     }
 
-    // Comprehensive Member Report Printing with Clear Deposit and Bazar Tables
     function printSingleMemberReport(memberId) {
       const member = state.members.find(m => m.id === memberId);
       if (!member) return;
@@ -1094,16 +1109,13 @@
       const hasRent = isAdmin && (state.rents || []).length > 0 && totalRent > 0;
       const memberRent = hasRent ? getMemberRentTotal(memberId) : 0;
 
-      // Member Deposits List
       const memberDeposits = (state.deposits || []).filter(d => d.memberId === memberId);
       const totalDeposit = memberDeposits.reduce((acc, cur) => acc + Number(cur.amount), 0);
 
-      // Bazars done by this Member (both personal pocket & mess fund)
       const memberAllBazars = (state.bazars || []).filter(b => b.memberId === memberId);
       const personalBazars = memberAllBazars.filter(b => b.source === 'personal');
       const totalPersonalBazar = personalBazars.reduce((acc, cur) => acc + Number(cur.amount), 0);
 
-      // Member Meals
       const memberMeals = (state.meals || [])
         .filter(m => m.memberId === memberId)
         .sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -1680,7 +1692,6 @@
       lucide.createIcons();
     }
 
-    // Form Event Handlers
     document.getElementById('memberForm').addEventListener('submit', (e) => {
       e.preventDefault();
       if (!authSession || authSession.role !== 'admin') return;
@@ -1855,6 +1866,7 @@
       }
     }
 
+    // App Initialization
     initPeriodSelectors();
     handlePeriodChange();
     applyAuthView();
