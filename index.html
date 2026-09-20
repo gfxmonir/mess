@@ -579,7 +579,6 @@
       adminPass: "123456"
     };
 
-    let globalMembers = [];
     let authSession = JSON.parse(sessionStorage.getItem('messAuth')) || null;
     let currentEditTarget = null;
     let unsubscribeFirestore = null;
@@ -636,7 +635,7 @@
       attachFirestoreListener(periodKey);
     }
 
-    // Attach Listener & Auto-Recover Previous Data from "messData/currentMonth" if empty
+    // Direct Auto-Recovery from old 'messData/currentMonth' if month is blank
     function attachFirestoreListener(periodKey) {
       if (unsubscribeFirestore) {
         unsubscribeFirestore();
@@ -644,23 +643,12 @@
 
       const docRef = db.collection("messMonthlyData").doc(periodKey);
 
-      unsubscribeFirestore = docRef.onSnapshot((doc) => {
-        if (doc.exists) {
-          const data = doc.data() || {};
-          state.members = data.members || [];
-          state.deposits = data.deposits || [];
-          state.bazars = data.bazars || [];
-          state.meals = data.meals || [];
-          state.rents = data.rents || [];
-          if (data.adminPass) state.adminPass = data.adminPass;
-          if (data.permanentNote !== undefined) state.permanentNote = data.permanentNote;
+      docRef.get().then((doc) => {
+        const data = doc.data() || {};
+        const hasData = data.members && data.members.length > 0;
 
-          if (state.members.length > 0) {
-            globalMembers = state.members;
-          }
-          render();
-        } else {
-          // If empty, check if older collection "messData/currentMonth" has the data!
+        // If no members in this monthly collection, pull directly from old 'messData/currentMonth'
+        if (!hasData) {
           db.collection("messData").doc("currentMonth").get().then((oldDoc) => {
             if (oldDoc.exists) {
               const oldData = oldDoc.data() || {};
@@ -671,27 +659,28 @@
               state.rents = oldData.rents || [];
               state.adminPass = oldData.adminPass || "123456";
               state.permanentNote = oldData.permanentNote || "";
-
-              // Save to current monthly doc so it restores permanently
-              docRef.set(state);
-            } else {
-              state.members = globalMembers.length > 0 ? [...globalMembers] : [];
-              state.deposits = [];
-              state.bazars = [];
-              state.meals = [];
-              state.rents = [];
-              docRef.set({
-                members: state.members,
-                deposits: [],
-                bazars: [],
-                meals: [],
-                rents: [],
-                adminPass: state.adminPass || "123456",
-                permanentNote: state.permanentNote || ""
+              
+              docRef.set(state).then(() => {
+                render();
               });
             }
-            render();
           });
+        }
+      });
+
+      unsubscribeFirestore = docRef.onSnapshot((doc) => {
+        if (doc.exists) {
+          const data = doc.data() || {};
+          if (data.members && data.members.length > 0) {
+            state.members = data.members || [];
+            state.deposits = data.deposits || [];
+            state.bazars = data.bazars || [];
+            state.meals = data.meals || [];
+            state.rents = data.rents || [];
+            if (data.adminPass) state.adminPass = data.adminPass;
+            if (data.permanentNote !== undefined) state.permanentNote = data.permanentNote;
+            render();
+          }
         }
 
         const noteInput = document.getElementById('messPermanentNote');
@@ -1182,7 +1171,6 @@
             </div>
           </div>
 
-          <!-- Deposit Statement -->
           <div class="section-title">নগদ জমার হিস্ট্রি ও স্টেটমেন্ট (Deposit List)</div>
           <table>
             <thead>
@@ -1209,7 +1197,6 @@
             </tfoot>
           </table>
 
-          <!-- Bazar Statement -->
           <div class="section-title">বাজার খরচের স্টেটমেন্ট (Bazar Expense List)</div>
           <table>
             <thead>
@@ -1232,7 +1219,6 @@
             </tbody>
           </table>
 
-          <!-- Daily Meal Log -->
           <div class="section-title">দৈনিক মিল হিস্ট্রি (Daily Meal Log)</div>
           <table>
             <thead>
@@ -1702,7 +1688,6 @@
       if (name) {
         state.members = state.members || [];
         state.members.push({ id: Date.now().toString(), name, phone: phone || '' });
-        globalMembers = state.members;
         document.getElementById('memberName').value = '';
         document.getElementById('memberPhone').value = '';
         saveState();
@@ -1866,7 +1851,6 @@
       }
     }
 
-    // App Initialization
     initPeriodSelectors();
     handlePeriodChange();
     applyAuthView();
