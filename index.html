@@ -3,11 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>স্মার্ট মেস ম্যানেজার</title>
+  <title>স্মার্ট মেস ম্যানেজার (Year & Month Filter)</title>
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Firebase SDK (v9 Compat Mode) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
   <style>
     @media print {
       .no-print { display: none !important; }
@@ -17,6 +22,7 @@
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans min-h-screen">
 
+  <!-- Login Modal -->
   <div id="loginScreen" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 sm:p-8 border border-slate-100">
       <div class="text-center mb-6">
@@ -62,6 +68,39 @@
     </div>
   </div>
 
+  <!-- Change Password Modal -->
+  <div id="passwordModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 border border-slate-100">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-md font-bold text-slate-800 flex items-center gap-2">
+          <i data-lucide="key" class="w-5 h-5 text-indigo-600"></i> অ্যাডমিন পাসওয়ার্ড পরিবর্তন
+        </h3>
+        <button onclick="closePasswordModal()" class="text-slate-400 hover:text-slate-600">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <form onsubmit="handlePasswordChange(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">বর্তমান পাসওয়ার্ড</label>
+          <input type="password" id="currentPassInput" required class="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">নতুন পাসওয়ার্ড</label>
+          <input type="password" id="newPassInput" required minlength="4" placeholder="কমপক্ষে ৪ অক্ষর" class="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">নতুন পাসওয়ার্ড নিশ্চিত করুন</label>
+          <input type="password" id="confirmPassInput" required minlength="4" class="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closePasswordModal()" class="px-3 py-2 text-xs rounded-lg border text-slate-600 hover:bg-slate-50">বাতিল</button>
+          <button type="submit" class="px-3 py-2 text-xs rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700">পরিবর্তন করুন</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Universal Edit Modal -->
   <div id="editModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 border border-slate-100 max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center mb-4">
@@ -82,10 +121,13 @@
     </div>
   </div>
 
-  <header class="bg-indigo-600 text-white shadow py-4 px-6 mb-6">
-    <div class="max-w-7xl mx-auto flex justify-between items-center">
+  <!-- Header with Year & Month Filter Controls -->
+  <header class="bg-indigo-600 text-white shadow py-4 px-4 sm:px-6 mb-6">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
       <div class="flex items-center space-x-3">
-        <i data-lucide="utensils" class="w-7 h-7"></i>
+        <div class="p-2 bg-white/10 rounded-xl">
+          <i data-lucide="utensils" class="w-7 h-7"></i>
+        </div>
         <div>
           <div class="flex items-center gap-2">
             <h1 class="text-xl sm:text-2xl font-bold tracking-wide">স্মার্ট মেস ম্যানেজার</h1>
@@ -94,21 +136,47 @@
           <p id="userRoleBadge" class="text-xs text-indigo-100 flex items-center gap-1.5 font-medium"></p>
         </div>
       </div>
-      <div class="no-print flex items-center space-x-2">
-        <button onclick="window.print()" class="bg-white/20 hover:bg-white/30 text-xs sm:text-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition">
-          <i data-lucide="printer" class="w-4 h-4"></i> প্রিন্ট / PDF
-        </button>
-        <button id="btnResetAll" onclick="resetAllData()" class="admin-only bg-rose-500 hover:bg-rose-600 text-xs sm:text-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition">
-          <i data-lucide="trash-2" class="w-4 h-4"></i> সব রিসেট
-        </button>
-        <button onclick="logout()" class="bg-slate-800/60 hover:bg-slate-800 text-xs sm:text-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition">
-          <i data-lucide="log-out" class="w-4 h-4"></i> লগআউট
-        </button>
+
+      <!-- Separate Year & Month Pickers -->
+      <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+        <div class="flex items-center bg-white/15 px-3 py-1.5 rounded-xl border border-white/20 backdrop-blur-xs gap-2">
+          <div class="flex items-center">
+            <i data-lucide="calendar" class="w-4 h-4 text-indigo-200 mr-1.5"></i>
+            <span class="text-xs font-semibold text-indigo-100 mr-1.5">সাল:</span>
+            <select id="filterYearSelect" onchange="handlePeriodChange()" class="bg-white text-slate-900 font-bold text-xs rounded-lg px-2 py-1 outline-none cursor-pointer">
+              <!-- Dynamically Populated Years -->
+            </select>
+          </div>
+
+          <div class="flex items-center border-l border-white/20 pl-2">
+            <span class="text-xs font-semibold text-indigo-100 mr-1.5">মাস:</span>
+            <select id="filterMonthSelect" onchange="handlePeriodChange()" class="bg-white text-slate-900 font-bold text-xs rounded-lg px-2 py-1 outline-none cursor-pointer">
+              <!-- 12 Months -->
+            </select>
+          </div>
+        </div>
+
+        <div class="no-print flex items-center space-x-1.5">
+          <button onclick="openPasswordModal()" class="admin-only bg-indigo-700 hover:bg-indigo-800 text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition">
+            <i data-lucide="key" class="w-3.5 h-3.5"></i> পাসওয়ার্ড
+          </button>
+          <button onclick="window.print()" class="bg-white/20 hover:bg-white/30 text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition">
+            <i data-lucide="printer" class="w-3.5 h-3.5"></i> প্রিন্ট
+          </button>
+          <button id="btnResetAll" onclick="resetCurrentPeriodData()" class="admin-only bg-rose-500 hover:bg-rose-600 text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> এই মাস রিসেট
+          </button>
+          <button onclick="logout()" class="bg-slate-800/60 hover:bg-slate-800 text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition">
+            <i data-lucide="log-out" class="w-3.5 h-3.5"></i> লগআউট
+          </button>
+        </div>
       </div>
     </div>
   </header>
 
   <main class="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
+    
+    <!-- Dashboard Stats -->
     <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
       <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-3">
         <div class="p-3 bg-blue-50 text-blue-600 rounded-lg"><i data-lucide="wallet" class="w-5 h-5"></i></div>
@@ -151,18 +219,21 @@
       </div>
     </section>
 
+    <!-- Top Admin Entry Forms -->
     <div id="adminActionPanels" class="admin-only grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 no-print">
+      <!-- Add Member -->
       <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
         <h2 class="text-md font-bold mb-3 flex items-center gap-2 text-slate-800">
           <i data-lucide="user-plus" class="w-5 h-5 text-indigo-500"></i> সদস্য যোগ করুন
         </h2>
         <form id="memberForm" class="space-y-3">
           <input type="text" id="memberName" placeholder="সদস্যের নাম" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm">
-          <input type="text" id="memberPhone" placeholder="মোবাইল নম্বর বা ইমেইল (ঐচ্ছিক)" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm">
+          <input type="text" id="memberPhone" placeholder="মোবাইল নম্বর বা রুম নং" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm">
           <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg text-sm transition">যুক্ত করুন</button>
         </form>
       </div>
 
+      <!-- Add Deposit -->
       <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
         <h2 class="text-md font-bold mb-3 flex items-center gap-2 text-slate-800">
           <i data-lucide="badge-dollar-sign" class="w-5 h-5 text-emerald-500"></i> জমা টাকা এন্ট্রি
@@ -180,6 +251,7 @@
         </form>
       </div>
 
+      <!-- Add Bazar -->
       <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
         <h2 class="text-md font-bold mb-3 flex items-center gap-2 text-slate-800">
           <i data-lucide="receipt" class="w-5 h-5 text-amber-500"></i> বাজার খরচ এন্ট্রি
@@ -203,6 +275,7 @@
       </div>
     </div>
 
+    <!-- Daily Meal Entry Module -->
     <section id="adminMealPanel" class="admin-only bg-white p-5 rounded-xl border border-slate-200 shadow-sm mb-8 no-print">
       <h2 class="text-md font-bold mb-4 flex items-center gap-2 text-slate-800">
         <i data-lucide="check-square" class="w-5 h-5 text-indigo-500"></i> দৈনিক মিল যোগ করুন
@@ -221,11 +294,15 @@
       </form>
     </section>
 
+    <!-- Monthly Final Ledger Table -->
     <section class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
       <div class="px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
         <div>
-          <h2 class="text-lg font-bold text-slate-800">মাসিক ফাইনাল হিসাব শিট</h2>
-          <span class="text-xs text-slate-500">সদস্যের মোট জমা = নগদ জমা + পকেট থেকে দেওয়া বাজার | মিল খরচ = মোট মিল × মিল রেট</span>
+          <div class="flex items-center gap-2">
+            <h2 class="text-lg font-bold text-slate-800">মাসিক ফাইনাল হিসাব শিট</h2>
+            <span id="activePeriodLabel" class="text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded"></span>
+          </div>
+          <span id="ledgerSubtitle" class="text-xs text-slate-500">সদস্যের মোট জমা = নগদ জমা + পকেট থেকে দেওয়া বাজার | মিল খরচ = মোট মিল × মিল রেট</span>
         </div>
         <div class="text-xs font-semibold bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg">
           ব্যালেন্স (+) = ফেরত পাবে | ব্যালেন্স (-) = মেসকে দিতে হবে
@@ -233,30 +310,20 @@
       </div>
       <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse">
-          <thead>
-            <tr class="bg-slate-50 text-slate-600 uppercase text-xs tracking-wider border-b border-slate-200">
-              <th class="py-3 px-4">নাম</th>
-              <th class="py-3 px-4 text-center">খাওয়া মোট মিল</th>
-              <th class="py-3 px-4 text-right">নগদ জমা (৳)</th>
-              <th class="py-3 px-4 text-right">পকেটের বাজার (৳)</th>
-              <th class="py-3 px-4 text-right bg-slate-100/60">সদস্যের মোট জমা (৳)</th>
-              <th class="py-3 px-4 text-right text-indigo-700">মিল খরচ (৳)</th>
-              <th class="py-3 px-4 text-right">ব্যালেন্স / ফেরতযোগ্য (৳)</th>
-              <th class="py-3 px-4 text-center no-print">অ্যাকশন</th>
-            </tr>
-          </thead>
+          <thead id="summaryTableHead"></thead>
           <tbody id="summaryTableBody" class="text-sm divide-y divide-slate-100"></tbody>
         </table>
       </div>
     </section>
 
+    <!-- Deposit History -->
     <section class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mb-8">
       <div class="flex justify-between items-center mb-4">
         <div>
           <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
             <i data-lucide="receipt-text" class="w-5 h-5 text-emerald-600"></i> নগদ জমার হিস্ট্রি ও স্টেটমেন্ট
           </h2>
-          <p class="text-xs text-slate-500">সদস্যদের দেওয়া নগদ জমার সম্পূর্ণ তারিখভিত্তিক বিবরণ</p>
+          <p class="text-xs text-slate-500">নির্বাচিত মাসের সদস্যদের দেওয়া নগদ জমার তারিখভিত্তিক বিবরণ</p>
         </div>
       </div>
       <div class="overflow-x-auto">
@@ -275,13 +342,14 @@
       </div>
     </section>
 
+    <!-- Bazar Expense History -->
     <section class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mb-8">
       <div class="flex justify-between items-center mb-4">
         <div>
           <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
             <i data-lucide="shopping-bag" class="w-5 h-5 text-amber-600"></i> বাজার খরচের স্টেটমেন্ট
           </h2>
-          <p class="text-xs text-slate-500">মেসের ফান্ড থেকে নাকি ব্যক্তিগত পকেট থেকে—উৎসসহ বিস্তারিত বাজারের তালিকা</p>
+          <p class="text-xs text-slate-500">মেসের ফান্ড বা ব্যক্তিগত পকেট থেকে হওয়া বাজার খরচের তালিকা</p>
         </div>
       </div>
       <div class="overflow-x-auto">
@@ -302,6 +370,7 @@
       </div>
     </section>
 
+    <!-- Member Individual Meal History -->
     <section class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mb-8 no-print">
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
         <div>
@@ -340,9 +409,141 @@
         </table>
       </div>
     </section>
+
+    <!-- BOTTOM SECTION: বাসাভাড়া ও অন্যান্য ইউটিলিটি বিল (ONLY ADMIN VIEW) -->
+    <section class="admin-only bg-white p-6 rounded-xl border border-slate-200 shadow-sm mb-8 no-print">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="home" class="w-5 h-5 text-rose-600"></i> বাসাভাড়া, ইউটিলিটি ও মেসের অন্যান্য খরচ
+            </h2>
+            <span class="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Only Admin View</span>
+          </div>
+          <p class="text-xs text-slate-500">এই অংশটি শুধুমাত্র অ্যাডমিন দেখতে পারবে। সাধারণ মেম্বার লগইনে এটি সম্পূর্ণ লুকানো থাকবে।</p>
+        </div>
+        <div id="rentStatBadge" class="hidden text-xs font-bold bg-rose-50 text-rose-700 px-3 py-1.5 rounded-lg border border-rose-100">
+          মোট বাসাভাড়া ও বিল: <span id="statBottomTotalRent">৳০</span>
+        </div>
+      </div>
+
+      <!-- Add Rent & Utility Form -->
+      <div class="mb-6 bg-rose-50/40 p-4 rounded-xl border border-rose-100">
+        <h3 class="text-xs font-bold uppercase text-rose-700 mb-3 flex items-center gap-1.5">
+          <i data-lucide="plus-circle" class="w-4 h-4"></i> নতুন খরচ বা বিল যোগ করুন
+        </h3>
+        <form id="rentForm" class="grid grid-cols-1 sm:grid-cols-6 gap-3">
+          <select id="rentMember" required class="px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-rose-500 font-medium">
+            <option value="all">👥 সবাই সমান ভাগ (কমন বিল)</option>
+          </select>
+
+          <select id="rentCategorySelect" onchange="toggleCustomRentCategory()" required class="px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-rose-500">
+            <option value="বাসাভাড়া">বাসাভাড়া</option>
+            <option value="কারেন্ট বিল">কারেন্ট বিল</option>
+            <option value="নেট বিল">নেট / ইন্টারনেট বিল</option>
+            <option value="খালা বিল">খালা / বুয়া বিল</option>
+            <option value="গ্যাস / পানি বিল">গ্যাস / পানি বিল</option>
+            <option value="ময়লা বিল">ময়লা বিল</option>
+            <option value="মেসের তৈজসপত্র">মেসের তৈজসপত্র / সামগ্রী</option>
+            <option value="custom">✍️ নিজের মতো লিখুন (Custom Category)</option>
+          </select>
+
+          <input type="text" id="rentCustomCategory" placeholder="ক্যাটাগরি লিখুন" class="px-3 py-2 border rounded-lg text-sm bg-amber-50 focus:ring-2 focus:ring-rose-500 hidden">
+          <input type="number" id="rentAmount" placeholder="টাকার পরিমাণ (৳)" min="1" required class="px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-rose-500">
+          <input type="date" id="rentDate" required class="px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-rose-500">
+          <input type="text" id="rentNote" placeholder="নোট / বিবরণ" class="px-3 py-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-rose-500">
+          <button type="submit" class="bg-rose-600 hover:bg-rose-700 text-white font-medium py-2 rounded-lg text-sm transition">খরচ সেভ করুন</button>
+        </form>
+      </div>
+
+      <!-- Rent Records Table -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-100 text-slate-600 uppercase text-xs tracking-wider border-y border-slate-200">
+              <th class="py-2.5 px-4">তারিখ</th>
+              <th class="py-2.5 px-4">সদস্য / বরাদ্দ</th>
+              <th class="py-2.5 px-4">খাত / বিবরণ</th>
+              <th class="py-2.5 px-4">নোট</th>
+              <th class="py-2.5 px-4 text-right">পরিমাণ (৳)</th>
+              <th class="py-2.5 px-4 text-center">অ্যাকশন</th>
+            </tr>
+          </thead>
+          <tbody id="rentTableBody" class="text-sm divide-y divide-slate-100"></tbody>
+          <tfoot id="rentTableFoot" class="bg-slate-50 font-bold text-slate-800 text-sm border-t border-slate-200 hidden">
+            <tr>
+              <td colspan="4" class="py-3 px-4 text-right">মোট ফিক্সড খরচ:</td>
+              <td id="rentGrandTotalSum" class="py-3 px-4 text-right text-rose-600">৳০</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+
+    <!-- SECTION: পার্মানেন্ট ক্লাউড নোট ও ক্যালকুলেটর -->
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 no-print">
+      
+      <!-- Permanent Cloud Notes (2 Cols) -->
+      <div class="md:col-span-2 bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-md font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="sticky-note" class="w-5 h-5 text-amber-500"></i> মেস পার্মানেন্ট ক্লাউড নোট ও নোটিশ বোর্ড
+            </h2>
+            <span class="text-[11px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded">All-Time Saved</span>
+          </div>
+          <p class="text-xs text-slate-500 mb-3">জরুরি তথ্য বা মেসের নিয়মাবলি লিখে সেভ করে রাখুন—এটি সব সময়ের জন্য সংরক্ষিত থাকবে।</p>
+          <textarea id="messPermanentNote" rows="6" placeholder="এখানে মেসের যেকোনো নোট বা নোটিশ লিখে রাখুন..." class="w-full p-3 border rounded-xl text-sm focus:ring-2 focus:ring-amber-400 bg-amber-50/20 text-slate-700 outline-none resize-none"></textarea>
+        </div>
+        <div class="flex justify-between items-center pt-3 border-t mt-3">
+          <span id="noteSavedStatus" class="text-xs text-slate-400">ক্লাউডে সংরক্ষিত আছে</span>
+          <button onclick="saveCloudNote()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+            <i data-lucide="save" class="w-4 h-4"></i> নোট সেভ করুন
+          </button>
+        </div>
+      </div>
+
+      <!-- Built-in Quick Calculator (1 Col) -->
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+        <h2 class="text-md font-bold mb-3 flex items-center gap-2 text-slate-800">
+          <i data-lucide="calculator" class="w-5 h-5 text-indigo-500"></i> দ্রুত ক্যালকুলেটর
+        </h2>
+        <div class="space-y-2">
+          <input type="text" id="calcDisplay" readonly class="w-full p-2.5 text-right font-mono text-lg font-bold border rounded-lg bg-slate-50 text-slate-800 tracking-wider" value="0">
+          <div class="grid grid-cols-4 gap-1.5 pt-2 text-sm font-semibold">
+            <button onclick="calcClear()" class="p-2.5 bg-slate-200 hover:bg-slate-300 rounded-lg text-slate-800">C</button>
+            <button onclick="calcPress('/')" class="p-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg">÷</button>
+            <button onclick="calcPress('*')" class="p-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg">×</button>
+            <button onclick="calcBackspace()" class="p-2.5 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-lg">⌫</button>
+
+            <button onclick="calcPress('7')" class="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg">7</button>
+            <button onclick="calcPress('8')" class="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg">8</button>
+            <button onclick="calcPress('9')" class="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg">9</button>
+            <button onclick="calcPress('-')" class="p-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg">−</button>
+
+            <button onclick="calcPress('4')" class="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg">4</button>
+            <button onclick="calcPress('5')" class="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg">5</button>
+            <button onclick="calcPress('6')" class="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg">6</button>
+            <button onclick="calcPress('+')" class="p-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg">+</button>
+
+            <button onclick="calcPress('1')" class="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg">1</button>
+            <button onclick="calcPress('2')" class="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg">2</button>
+            <button onclick="calcPress('3')" class="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg">3</button>
+            <button onclick="calcEqual()" class="p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg row-span-2 flex items-center justify-center font-bold">=</button>
+
+            <button onclick="calcPress('0')" class="col-span-2 p-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg">0</button>
+            <button onclick="calcPress('.')" class="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg">.</button>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
   </main>
 
   <script>
+    // ================== FIREBASE CONFIGURATION ================== //
     const firebaseConfig = {
       apiKey: "AIzaSyABM1bT_h8Mz8dby43DlQRxMzHBJSW7Pik",
       authDomain: "mess-c3924.firebaseapp.com",
@@ -353,38 +554,170 @@
       measurementId: "G-XYSVXZ7J4Q"
     };
 
+    // Initialize Firebase
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
     }
     const db = firebase.firestore();
-    const docRef = db.collection("messData").doc("currentMonth");
 
+    const monthNamesBn = [
+      "জানুয়ারি", "ফেব্রুয়ারি", "মার্চ", "এপ্রিল", "মে", "জুন",
+      "জুলাই", "আগস্ট", "সেপ্টেম্বর", "অক্টোবর", "নভেম্বর", "ডিসেম্বর"
+    ];
+
+    // Current Date Detection
+    const now = new Date();
+    let currentYear = now.getFullYear();
+    let currentMonthNum = now.getMonth() + 1; // 1-12
+
+    // Active State
     let state = {
       members: [],
       deposits: [],
       bazars: [],
-      meals: []
+      meals: [],
+      rents: [],
+      permanentNote: "",
+      adminPass: "123456"
     };
 
+    let globalMembers = [];
     let authSession = JSON.parse(sessionStorage.getItem('messAuth')) || null;
     let currentEditTarget = null;
+    let unsubscribeFirestore = null;
 
-    docRef.onSnapshot((doc) => {
-      if (doc.exists) {
-        state = doc.data() || { members: [], deposits: [], bazars: [], meals: [] };
+    // Initialize Separate Year & Month Pickers (No 2025, starting from current year onwards)
+    function initPeriodSelectors() {
+      const yearSelect = document.getElementById('filterYearSelect');
+      const monthSelect = document.getElementById('filterMonthSelect');
+
+      // Populate Years (Current Year and Next Year)
+      yearSelect.innerHTML = '';
+      const availableYears = [currentYear, currentYear + 1];
+      availableYears.forEach(y => {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.innerText = `${y} সাল`;
+        if (y === currentYear) opt.selected = true;
+        yearSelect.appendChild(opt);
+      });
+
+      // Populate 12 Months
+      monthSelect.innerHTML = '';
+      monthNamesBn.forEach((mName, idx) => {
+        const opt = document.createElement('option');
+        opt.value = String(idx + 1).padStart(2, '0');
+        opt.innerText = mName;
+        if ((idx + 1) === currentMonthNum) opt.selected = true;
+        monthSelect.appendChild(opt);
+      });
+
+      updatePeriodLabel();
+    }
+
+    function getActivePeriodKey() {
+      const y = document.getElementById('filterYearSelect').value;
+      const m = document.getElementById('filterMonthSelect').value;
+      return `${y}-${m}`;
+    }
+
+    function updatePeriodLabel() {
+      const y = document.getElementById('filterYearSelect').value;
+      const mSelect = document.getElementById('filterMonthSelect');
+      const mName = mSelect.options[mSelect.selectedIndex]?.text || '';
+      document.getElementById('activePeriodLabel').innerText = `${mName} ${y}`;
+    }
+
+    function handlePeriodChange() {
+      updatePeriodLabel();
+      const periodKey = getActivePeriodKey();
+
+      // Update date fields default value
+      const todayStr = new Date().toISOString().split('T')[0];
+      const defaultDate = todayStr.startsWith(periodKey) ? todayStr : `${periodKey}-01`;
+      document.getElementById('mealDate').value = defaultDate;
+      document.getElementById('depositDate').value = defaultDate;
+      document.getElementById('bazarDate').value = defaultDate;
+      document.getElementById('rentDate').value = defaultDate;
+
+      attachFirestoreListener(periodKey);
+    }
+
+    // Attach Live Listener to Selected Year-Month Doc
+    function attachFirestoreListener(periodKey) {
+      if (unsubscribeFirestore) {
+        unsubscribeFirestore(); // Detach previous listener
       }
-      render();
-    }, (error) => {
-      console.error("Firebase sync error:", error);
-    });
 
+      const docRef = db.collection("messMonthlyData").doc(periodKey);
+
+      unsubscribeFirestore = docRef.onSnapshot((doc) => {
+        if (doc.exists) {
+          const data = doc.data() || {};
+          state.members = data.members || [];
+          state.deposits = data.deposits || [];
+          state.bazars = data.bazars || [];
+          state.meals = data.meals || [];
+          state.rents = data.rents || [];
+          if (data.adminPass) state.adminPass = data.adminPass;
+          if (data.permanentNote !== undefined) state.permanentNote = data.permanentNote;
+
+          if (state.members.length > 0) {
+            globalMembers = state.members;
+          }
+        } else {
+          // If first time opening this month, carry over members from previous
+          state.members = globalMembers.length > 0 ? [...globalMembers] : [];
+          state.deposits = [];
+          state.bazars = [];
+          state.meals = [];
+          state.rents = [];
+          docRef.set({
+            members: state.members,
+            deposits: [],
+            bazars: [],
+            meals: [],
+            rents: [],
+            adminPass: state.adminPass || "123456",
+            permanentNote: state.permanentNote || ""
+          });
+        }
+
+        const noteInput = document.getElementById('messPermanentNote');
+        if (noteInput && document.activeElement !== noteInput) {
+          noteInput.value = state.permanentNote || "";
+        }
+
+        render();
+      }, (error) => {
+        console.error("Firebase sync error:", error);
+      });
+    }
+
+    // Cloud Data Saver for Current Selected Period
     function saveState() {
+      const periodKey = getActivePeriodKey();
+      const docRef = db.collection("messMonthlyData").doc(periodKey);
       docRef.set(state).catch((err) => {
         alert("ইন্টারনেট কানেকশন চেক করুন! ডেটা সেভ হয়নি।");
         console.error(err);
       });
     }
 
+    function saveCloudNote() {
+      const noteVal = document.getElementById('messPermanentNote').value;
+      state.permanentNote = noteVal;
+      saveState();
+      const status = document.getElementById('noteSavedStatus');
+      status.innerText = "নোট ক্লাউডে সফলভাবে সেভ হয়েছে!";
+      status.className = "text-xs text-emerald-600 font-semibold";
+      setTimeout(() => {
+        status.innerText = "ক্লাউডে সংরক্ষিত আছে";
+        status.className = "text-xs text-slate-400";
+      }, 3000);
+    }
+
+    // Role & Auth Handlers
     function setRoleTab(role) {
       const tabAdmin = document.getElementById('tabAdmin');
       const tabMember = document.getElementById('tabMember');
@@ -408,9 +741,9 @@
       e.preventDefault();
       const identifier = document.getElementById('adminIdentifier').value.trim();
       const pass = document.getElementById('adminPassword').value;
+      const expectedPass = state.adminPass || "123456";
 
-      // Safe check (no password leaked in alert)
-      if (identifier === 'admin' && pass === '123456') {
+      if (identifier === 'admin' && pass === expectedPass) {
         authSession = { role: 'admin', user: identifier };
         sessionStorage.setItem('messAuth', JSON.stringify(authSession));
         applyAuthView();
@@ -465,10 +798,46 @@
       render();
     }
 
+    // Password Change Modal Handlers
+    function openPasswordModal() {
+      if (!authSession || authSession.role !== 'admin') return;
+      document.getElementById('passwordModal').classList.remove('hidden');
+      document.getElementById('currentPassInput').value = '';
+      document.getElementById('newPassInput').value = '';
+      document.getElementById('confirmPassInput').value = '';
+    }
+
+    function closePasswordModal() {
+      document.getElementById('passwordModal').classList.add('hidden');
+    }
+
+    function handlePasswordChange(e) {
+      e.preventDefault();
+      const current = document.getElementById('currentPassInput').value;
+      const newPass = document.getElementById('newPassInput').value;
+      const confirmPass = document.getElementById('confirmPassInput').value;
+      const expectedPass = state.adminPass || "123456";
+
+      if (current !== expectedPass) {
+        alert('বর্তমান পাসওয়ার্ডটি ভুল হয়েছে!');
+        return;
+      }
+      if (newPass !== confirmPass) {
+        alert('নতুন দুটি পাসওয়ার্ড মিলছে না!');
+        return;
+      }
+
+      state.adminPass = newPass;
+      saveState();
+      closePasswordModal();
+      alert('অ্যাডমিন পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!');
+    }
+
     function getTotals() {
       const totalDeposit = (state.deposits || []).reduce((acc, cur) => acc + Number(cur.amount), 0);
       const totalCost = (state.bazars || []).reduce((acc, cur) => acc + Number(cur.amount), 0);
-      
+      const totalRent = (state.rents || []).reduce((acc, cur) => acc + Number(cur.amount), 0);
+
       const fundBazar = (state.bazars || [])
         .filter(b => b.source === 'fund' || !b.source)
         .reduce((acc, cur) => acc + Number(cur.amount), 0);
@@ -477,9 +846,38 @@
       const totalMeals = (state.meals || []).reduce((acc, cur) => acc + (Number(cur.breakfast) + Number(cur.lunch) + Number(cur.dinner)), 0);
       const mealRate = totalMeals > 0 ? (totalCost / totalMeals) : 0;
 
-      return { totalDeposit, totalCost, fundBalance, totalMeals, mealRate };
+      return { totalDeposit, totalCost, totalRent, fundBalance, totalMeals, mealRate };
     }
 
+    function getMemberRentTotal(memberId) {
+      const memberCount = (state.members || []).length;
+      if (memberCount === 0) return 0;
+
+      let memberRent = 0;
+      (state.rents || []).forEach(r => {
+        if (r.memberId === memberId) {
+          memberRent += Number(r.amount);
+        } else if (r.memberId === 'all' || !r.memberId) {
+          memberRent += (Number(r.amount) / memberCount);
+        }
+      });
+      return memberRent;
+    }
+
+    function toggleCustomRentCategory() {
+      const select = document.getElementById('rentCategorySelect');
+      const customInput = document.getElementById('rentCustomCategory');
+      if (select.value === 'custom') {
+        customInput.classList.remove('hidden');
+        customInput.required = true;
+        customInput.focus();
+      } else {
+        customInput.classList.add('hidden');
+        customInput.required = false;
+      }
+    }
+
+    // Modal Edit Controls
     function closeEditModal() {
       document.getElementById('editModal').classList.add('hidden');
       currentEditTarget = null;
@@ -500,7 +898,7 @@
             <input type="text" id="edit_memberName" value="${item.name}" required class="w-full px-3 py-2 border rounded-lg text-sm">
           </div>
           <div>
-            <label class="block text-xs font-semibold text-slate-500 mb-1">মোবাইল / ইমেইল</label>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">মোবাইল / রুম নং</label>
             <input type="text" id="edit_memberPhone" value="${item.phone || ''}" class="w-full px-3 py-2 border rounded-lg text-sm">
           </div>
         `;
@@ -559,6 +957,34 @@
           <div>
             <label class="block text-xs font-semibold text-slate-500 mb-1">নোট</label>
             <input type="text" id="edit_bazarNote" value="${item.note || ''}" class="w-full px-3 py-2 border rounded-lg text-sm">
+          </div>
+        `;
+      } else if (type === 'rent') {
+        const item = state.rents.find(r => r.id === id);
+        title.innerText = 'বাসাভাড়া ও ইউটিলিটি বিল এডিট করুন';
+        body.innerHTML = `
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">সদস্য / বরাদ্দ</label>
+            <select id="edit_rentMember" class="w-full px-3 py-2 border rounded-lg text-sm font-medium bg-rose-50">
+              <option value="all" ${item.memberId === 'all' ? 'selected' : ''}>👥 সবাই সমান ভাগ (কমন বিল)</option>
+              ${(state.members || []).map(m => `<option value="${m.id}" ${m.id === item.memberId ? 'selected' : ''}>👤 ${m.name}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">খাত / বিবরণ</label>
+            <input type="text" id="edit_rentCategory" value="${item.category}" required class="w-full px-3 py-2 border rounded-lg text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">পরিমাণ (৳)</label>
+            <input type="number" id="edit_rentAmount" value="${item.amount}" min="1" required class="w-full px-3 py-2 border rounded-lg text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">তারিখ</label>
+            <input type="date" id="edit_rentDate" value="${item.date}" required class="w-full px-3 py-2 border rounded-lg text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">নোট</label>
+            <input type="text" id="edit_rentNote" value="${item.note || ''}" class="w-full px-3 py-2 border rounded-lg text-sm">
           </div>
         `;
       } else if (type === 'meal') {
@@ -631,6 +1057,13 @@
         item.amount = parseFloat(document.getElementById('edit_bazarAmount').value);
         item.date = document.getElementById('edit_bazarDate').value;
         item.note = document.getElementById('edit_bazarNote').value.trim();
+      } else if (type === 'rent') {
+        const item = state.rents.find(r => r.id === id);
+        item.memberId = document.getElementById('edit_rentMember').value;
+        item.category = document.getElementById('edit_rentCategory').value.trim();
+        item.amount = parseFloat(document.getElementById('edit_rentAmount').value);
+        item.date = document.getElementById('edit_rentDate').value;
+        item.note = document.getElementById('edit_rentNote').value.trim();
       } else if (type === 'meal') {
         const item = state.meals.find(m => m.id === id);
         item.date = document.getElementById('edit_mealDate').value;
@@ -665,13 +1098,16 @@
       const member = state.members.find(m => m.id === memberId);
       if (!member) return;
 
-      const { mealRate } = getTotals();
+      const isAdmin = authSession && authSession.role === 'admin';
+      const { mealRate, totalRent } = getTotals();
+      
+      const hasRent = isAdmin && (state.rents || []).length > 0 && totalRent > 0;
+      const memberRent = hasRent ? getMemberRentTotal(memberId) : 0;
 
       const memberDeposits = (state.deposits || []).filter(d => d.memberId === memberId);
       const totalDeposit = memberDeposits.reduce((acc, cur) => acc + Number(cur.amount), 0);
 
-      const memberAllBazars = (state.bazars || []).filter(b => b.memberId === memberId);
-      const personalBazars = memberAllBazars.filter(b => b.source === 'personal');
+      const personalBazars = (state.bazars || []).filter(b => b.memberId === memberId && b.source === 'personal');
       const totalPersonalBazar = personalBazars.reduce((acc, cur) => acc + Number(cur.amount), 0);
 
       const memberMeals = (state.meals || [])
@@ -680,48 +1116,54 @@
       const totalMeals = memberMeals.reduce((acc, cur) => acc + (Number(cur.breakfast) + Number(cur.lunch) + Number(cur.dinner)), 0);
 
       const mealCost = totalMeals * mealRate;
+      const totalCost = hasRent ? (mealCost + memberRent) : mealCost;
       const totalPaid = totalDeposit + totalPersonalBazar;
-      const balance = totalPaid - mealCost;
+      const balance = totalPaid - totalCost;
+
+      const y = document.getElementById('filterYearSelect').value;
+      const mSelect = document.getElementById('filterMonthSelect');
+      const mName = mSelect.options[mSelect.selectedIndex]?.text || '';
+      const periodTitle = `${mName} ${y}`;
 
       const printWindow = window.open('', '_blank', 'width=850,height=900');
       printWindow.document.write(`
         <!DOCTYPE html>
         <html lang="bn">
         <head>
-          <title>মিল স্টেটমেন্ট - ${member.name}</title>
+          <title>হিসাব ভাউচার - ${member.name} (${periodTitle})</title>
           <style>
-            body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 25px; color: #1e293b; line-height: 1.4; }
-            .header { text-align: center; border-bottom: 2px dashed #cbd5e1; padding-bottom: 12px; margin-bottom: 15px; }
-            .header h1 { margin: 0 0 4px 0; font-size: 22px; color: #4338ca; }
+            body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 30px; color: #1e293b; line-height: 1.5; }
+            .header { text-align: center; border-bottom: 2px dashed #cbd5e1; padding-bottom: 15px; margin-bottom: 20px; }
+            .header h1 { margin: 0 0 5px 0; font-size: 24px; color: #4338ca; }
             .header p { margin: 0; font-size: 13px; color: #64748b; }
-            .summary-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; }
-            .grid-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; }
-            .total-row { border-top: 1px solid #cbd5e1; padding-top: 8px; margin-top: 8px; font-weight: bold; font-size: 15px; }
-            .section-title { font-size: 14px; font-weight: bold; margin: 16px 0 6px 0; color: #0f172a; border-left: 4px solid #4338ca; padding-left: 8px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 12px; }
-            th, td { border: 1px solid #cbd5e1; padding: 6px 8px; }
-            th { background: #f1f5f9; text-align: left; font-weight: 600; color: #334155; }
+            .summary-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 25px; }
+            .grid-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+            .total-row { border-top: 1px solid #cbd5e1; padding-top: 8px; margin-top: 8px; font-weight: bold; font-size: 16px; }
+            .section-title { font-size: 15px; font-weight: bold; margin: 15px 0 8px 0; color: #0f172a; border-left: 4px solid #4338ca; padding-left: 8px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }
+            th, td { border: 1px solid #e2e8f0; padding: 6px 10px; }
+            th { background: #f1f5f9; text-align: left; font-weight: 600; }
             .text-center { text-align: center; }
             .text-right { text-align: right; }
             .positive { color: #16a34a; font-weight: bold; }
             .negative { color: #dc2626; font-weight: bold; }
-            .footer { margin-top: 30px; display: flex; justify-content: space-between; font-size: 12px; color: #64748b; }
-            .signature { border-top: 1px solid #94a3b8; width: 140px; text-align: center; padding-top: 4px; }
+            .footer { margin-top: 40px; display: flex; justify-content: space-between; font-size: 12px; color: #64748b; }
+            .signature { border-top: 1px solid #94a3b8; width: 150px; text-align: center; padding-top: 5px; }
           </style>
         </head>
         <body>
           <div class="header">
             <h1>স্মার্ট মেস ম্যানেজার</h1>
-            <p>ব্যক্তিগত পূর্ণাঙ্গ হিসাব ভাউচার</p>
-            <p style="margin-top: 5px; font-weight: bold; font-size: 15px; color: #1e293b;">সদস্যের নাম: ${member.name} ${member.phone ? '('+member.phone+')' : ''}</p>
+            <p>মাসিক পূর্ণাঙ্গ হিসাব ভাউচার — <b>${periodTitle}</b></p>
+            <p style="margin-top: 6px; font-weight: bold; font-size: 15px; color: #1e293b;">সদস্যের নাম: ${member.name}</p>
           </div>
 
           <div class="summary-card">
-            <div class="grid-row"><span>মোট খাওয়া মিল:</span><span>${totalMeals.toFixed(1)} টি (মিল রেট: ৳${mealRate.toFixed(2)})</span></div>
-            <div class="grid-row"><span>খাবারের মোট মিল খরচ:</span><span>৳${mealCost.toFixed(2)}</span></div>
-            <div class="grid-row" style="border-top:1px dashed #e2e8f0; padding-top:4px; margin-top:4px;">
-              <span>মোট নগদ জমা:</span><span>৳${totalDeposit.toLocaleString()}</span>
-            </div>
+            <div class="grid-row"><span>মোট খাওয়া মিল:</span><span>${totalMeals.toFixed(1)} টি (রেট: ৳${mealRate.toFixed(2)})</span></div>
+            <div class="grid-row"><span>খাবারের মিল খরচ:</span><span>৳${mealCost.toFixed(2)}</span></div>
+            ${hasRent ? `<div class="grid-row" style="color:#e11d48; font-weight:600;"><span>বাসাভাড়া ও ইউটিলিটি বিল:</span><span>৳${memberRent.toFixed(2)}</span></div>` : ''}
+            ${hasRent ? `<div class="grid-row" style="font-weight:bold;"><span>সর্বমোট খরচ (মিল + বাসাভাড়া):</span><span>৳${totalCost.toFixed(2)}</span></div>` : ''}
+            <div class="grid-row"><span>নগদ জমা:</span><span>৳${totalDeposit.toLocaleString()}</span></div>
             <div class="grid-row"><span>নিজের পকেট থেকে দেওয়া বাজার:</span><span>৳${totalPersonalBazar.toLocaleString()}</span></div>
             <div class="grid-row" style="font-weight:600; color:#4338ca;"><span>মেসে সর্বমোট জমা/পরিশোধ:</span><span>৳${totalPaid.toLocaleString()}</span></div>
             <div class="grid-row total-row">
@@ -732,64 +1174,10 @@
             </div>
           </div>
 
-          <div class="section-title">নগদ জমার হিস্ট্রি ও স্টেটমেন্ট (Deposit List)</div>
+          <div class="section-title">দৈনিক মিল হিস্ট্রি</div>
           <table>
             <thead>
-              <tr>
-                <th style="width: 25%;">তারিখ</th>
-                <th style="width: 45%;">নোট / মাধ্যম</th>
-                <th style="width: 30%;" class="text-right">পরিমাণ (৳)</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${memberDeposits.length > 0 ? memberDeposits.map(d => `
-                <tr>
-                  <td>${d.date}</td>
-                  <td>${d.note || 'নগদ ক্যাশ'}</td>
-                  <td class="text-right font-semibold text-emerald-600">৳${Number(d.amount).toLocaleString()}</td>
-                </tr>
-              `).join('') : '<tr><td colspan="3" class="text-center text-slate-400">কোনো নগদ জমা নেই</td></tr>'}
-            </tbody>
-            <tfoot>
-              <tr style="background:#f8fafc; font-weight:bold;">
-                <td colspan="2" class="text-right">সর্বমোট নগদ জমা:</td>
-                <td class="text-right text-emerald-700">৳${totalDeposit.toLocaleString()}</td>
-              </tr>
-            </tfoot>
-          </table>
-
-          <div class="section-title">বাজার খরচের স্টেটমেন্ট (Bazar Expense List)</div>
-          <table>
-            <thead>
-              <tr>
-                <th style="width: 20%;">তারিখ</th>
-                <th style="width: 35%;">বাজারের বিবরণ</th>
-                <th style="width: 25%;">টাকার উৎস</th>
-                <th style="width: 20%;" class="text-right">খরচ (৳)</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${memberAllBazars.length > 0 ? memberAllBazars.map(b => `
-                <tr>
-                  <td>${b.date}</td>
-                  <td>${b.title}${b.note ? '<span style="color:#64748b; font-size:11px;">('+b.note+')</span>' : ''}</td>
-                  <td>${b.source === 'personal' ? 'ব্যক্তিগত পকেট থেকে' : 'মেসের ফান্ড থেকে'}</td>
-                  <td class="text-right font-semibold text-amber-600">৳${Number(b.amount).toLocaleString()}</td>
-                </tr>
-              `).join('') : '<tr><td colspan="4" class="text-center text-slate-400">এই সদস্য কোনো বাজার খরচ করেননি</td></tr>'}
-            </tbody>
-          </table>
-
-          <div class="section-title">দৈনিক মিল হিস্ট্রি (Daily Meal Log)</div>
-          <table>
-            <thead>
-              <tr>
-                <th>তারিখ</th>
-                <th class="text-center">সকাল</th>
-                <th class="text-center">দুপুর</th>
-                <th class="text-center">রাত</th>
-                <th class="text-right">দিনের মোট মিল</th>
-              </tr>
+              <tr><th>তারিখ</th><th class="text-center">সকাল</th><th class="text-center">দুপুর</th><th class="text-center">রাত</th><th class="text-right">মোট মিল</th></tr>
             </thead>
             <tbody>
               ${memberMeals.length > 0 ? memberMeals.map(m => `
@@ -798,16 +1186,26 @@
                   <td class="text-center">${m.breakfast}</td>
                   <td class="text-center">${m.lunch}</td>
                   <td class="text-center">${m.dinner}</td>
-                  <td class="text-right font-semibold">${(Number(m.breakfast) + Number(m.lunch) + Number(m.dinner)).toFixed(1)}</td>
+                  <td class="text-right">${(Number(m.breakfast) + Number(m.lunch) + Number(m.dinner)).toFixed(1)}</td>
                 </tr>
-              `).join('') : '<tr><td colspan="5" class="text-center text-slate-400">কোনো মিল এন্ট্রি নেই</td></tr>'}
+              `).join('') : '<tr><td colspan="5" class="text-center">কোনো মিল এন্ট্রি নেই</td></tr>'}
             </tbody>
-            <tfoot>
-              <tr style="background:#f8fafc; font-weight:bold;">
-                <td colspan="4" class="text-right">মোট খাওয়া মিল:</td>
-                <td class="text-right text-indigo-700">${totalMeals.toFixed(1)} টি</td>
-              </tr>
-            </tfoot>
+          </table>
+
+          <div class="section-title">নগদ জমা হিস্ট্রি (Deposit List)</div>
+          <table>
+            <thead>
+              <tr><th>তারিখ</th><th>নোট / বিবরণ</th><th class="text-right">পরিমাণ (৳)</th></tr>
+            </thead>
+            <tbody>
+              ${memberDeposits.length > 0 ? memberDeposits.map(d => `
+                <tr>
+                  <td>${d.date}</td>
+                  <td>${d.note || 'নগদ'}</td>
+                  <td class="text-right">৳${Number(d.amount).toLocaleString()}</td>
+                </tr>
+              `).join('') : '<tr><td colspan="3" class="text-center">কোনো নগদ জমা নেই</td></tr>'}
+            </tbody>
           </table>
 
           <div class="footer">
@@ -824,11 +1222,12 @@
 
     function deleteMember(memberId, memberName) {
       if (!authSession || authSession.role !== 'admin') return;
-      if (confirm(`আপনি কি নিশ্চিত যে "${memberName}"-কে ডিলিট করতে চান?`)) {
+      if (confirm(`আপনি কি নিশ্চিত যে "${memberName}"-কে এই মাস থেকে ডিলিট করতে চান?`)) {
         state.members = (state.members || []).filter(m => m.id !== memberId);
         state.deposits = (state.deposits || []).filter(d => d.memberId !== memberId);
         state.bazars = (state.bazars || []).filter(b => b.memberId !== memberId);
         state.meals = (state.meals || []).filter(m => m.memberId !== memberId);
+        state.rents = (state.rents || []).filter(r => r.memberId !== memberId);
         saveState();
       }
     }
@@ -845,6 +1244,14 @@
       if (!authSession || authSession.role !== 'admin') return;
       if (confirm('এই বাজার খরচের রেকর্ডটি মুছে ফেলতে চান?')) {
         state.bazars = (state.bazars || []).filter(b => b.id !== bazarId);
+        saveState();
+      }
+    }
+
+    function deleteRent(rentId) {
+      if (!authSession || authSession.role !== 'admin') return;
+      if (confirm('এই খরচ বা বিলটি মুছে ফেলতে চান?')) {
+        state.rents = (state.rents || []).filter(r => r.id !== rentId);
         saveState();
       }
     }
@@ -928,12 +1335,64 @@
       lucide.createIcons();
     }
 
+    function renderRents() {
+      const tbody = document.getElementById('rentTableBody');
+      const tfoot = document.getElementById('rentTableFoot');
+      const rentTotalElem = document.getElementById('rentGrandTotalSum');
+      const rentBadge = document.getElementById('rentStatBadge');
+      tbody.innerHTML = '';
+
+      if (!state.rents || state.rents.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-400">এই মাসে কোনো বাসাভাড়া বা খরচের রেকর্ড নেই।</td></tr>`;
+        tfoot.classList.add('hidden');
+        if (rentBadge) rentBadge.classList.add('hidden');
+        return;
+      }
+
+      const sortedRents = [...state.rents].sort((a, b) => new Date(b.date) - new Date(a.date));
+      let totalRentSum = 0;
+
+      sortedRents.forEach(r => {
+        totalRentSum += Number(r.amount);
+        let assignedTo = '👥 সবাই (কমন বিল)';
+        if (r.memberId && r.memberId !== 'all') {
+          const m = (state.members || []).find(mem => mem.id === r.memberId);
+          assignedTo = m ? `👤 ${m.name}` : 'সদস্য';
+        }
+
+        const row = document.createElement('tr');
+        row.className = "hover:bg-slate-50 transition";
+        row.innerHTML = `
+          <td class="py-2.5 px-4 font-medium text-slate-700">${r.date}</td>
+          <td class="py-2.5 px-4 font-medium ${r.memberId === 'all' ? 'text-indigo-600' : 'text-slate-800'}">${assignedTo}</td>
+          <td class="py-2.5 px-4 font-semibold text-rose-700">${r.category}</td>
+          <td class="py-2.5 px-4 text-slate-500 text-xs italic">${r.note || '—'}</td>
+          <td class="py-2.5 px-4 text-right font-semibold text-rose-600">৳${Number(r.amount).toLocaleString()}</td>
+          <td class="py-2.5 px-4 text-center">
+            <div class="flex items-center justify-center space-x-1">
+              <button onclick="openEditModal('rent', '${r.id}')" class="p-1 text-slate-400 hover:text-indigo-600" title="এডিট"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+              <button onclick="deleteRent('${r.id}')" class="p-1 text-slate-400 hover:text-rose-500" title="মুছুন"><i data-lucide="trash" class="w-4 h-4"></i></button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+
+      rentTotalElem.innerText = `৳${totalRentSum.toLocaleString()}`;
+      tfoot.classList.remove('hidden');
+
+      if (rentBadge) {
+        document.getElementById('statBottomTotalRent').innerText = `৳${totalRentSum.toLocaleString()}`;
+        rentBadge.classList.remove('hidden');
+      }
+    }
+
     function renderDeposits() {
       const tbody = document.getElementById('depositTableBody');
       tbody.innerHTML = '';
 
       if (!state.deposits || state.deposits.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-slate-400">কোনো জমার রেকর্ড নেই।</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-slate-400">এই মাসে কোনো জমার রেকর্ড নেই।</td></tr>`;
         return;
       }
 
@@ -967,7 +1426,7 @@
       tbody.innerHTML = '';
 
       if (!state.bazars || state.bazars.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400">কোনো বাজার খরচের রেকর্ড নেই।</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400">এই মাসে কোনো বাজার খরচের রেকর্ড নেই।</td></tr>`;
         return;
       }
 
@@ -1004,7 +1463,7 @@
     }
 
     function render() {
-      const { totalDeposit, totalCost, fundBalance, totalMeals, mealRate } = getTotals();
+      const { totalDeposit, totalCost, totalRent, fundBalance, totalMeals, mealRate } = getTotals();
 
       document.getElementById('statTotalDeposit').innerText = `৳${totalDeposit.toLocaleString()}`;
       document.getElementById('statTotalCost').innerText = `৳${totalCost.toLocaleString()}`;
@@ -1031,20 +1490,68 @@
         select.value = selectedVal;
       });
 
+      // Update Rent Member Dropdown
+      const rentMemberSelect = document.getElementById('rentMember');
+      if (rentMemberSelect) {
+        const currentRentVal = rentMemberSelect.value;
+        rentMemberSelect.innerHTML = `<option value="all">👥 সবাই সমান ভাগ (কমন বিল)</option>`;
+        (state.members || []).forEach(member => {
+          const opt = document.createElement('option');
+          opt.value = member.id;
+          opt.innerText = `👤 ${member.name}`;
+          rentMemberSelect.appendChild(opt);
+        });
+        rentMemberSelect.value = currentRentVal;
+      }
+
       updateFilterDropdown();
       showMemberMealLog();
       renderDeposits();
       renderBazars();
+      renderRents();
+
+      const isAdmin = authSession && authSession.role === 'admin';
+      const hasRent = isAdmin && (state.rents || []).length > 0 && totalRent > 0;
+      const thead = document.getElementById('summaryTableHead');
+      const subtitle = document.getElementById('ledgerSubtitle');
+
+      if (hasRent) {
+        subtitle.innerText = `সদস্যের মোট জমা = নগদ জমা + পকেটের বাজার | মোট খরচ = মিল খরচ + নিজস্ব বরাদ্দকৃত বাসাভাড়া ও বিল`;
+        thead.innerHTML = `
+          <tr class="bg-slate-50 text-slate-600 uppercase text-xs tracking-wider border-b border-slate-200">
+            <th class="py-3 px-4">নাম</th>
+            <th class="py-3 px-4 text-center">খাওয়া মিল</th>
+            <th class="py-3 px-4 text-right">খাবার খরচ (৳)</th>
+            <th class="py-3 px-4 text-right text-rose-600">ভাড়া ও বিল (৳)</th>
+            <th class="py-3 px-4 text-right font-bold text-slate-900 bg-slate-100/60">সর্বমোট খরচ (৳)</th>
+            <th class="py-3 px-4 text-right text-emerald-600">মোট জমা (৳)</th>
+            <th class="py-3 px-4 text-right font-bold">ব্যালেন্স / স্থিতি (৳)</th>
+            <th class="py-3 px-4 text-center no-print">অ্যাকশন</th>
+          </tr>
+        `;
+      } else {
+        subtitle.innerText = `সদস্যের মোট জমা = নগদ জমা + পকেট থেকে দেওয়া বাজার | মিল খরচ = মোট মিল × মিল রেট`;
+        thead.innerHTML = `
+          <tr class="bg-slate-50 text-slate-600 uppercase text-xs tracking-wider border-b border-slate-200">
+            <th class="py-3 px-4">নাম</th>
+            <th class="py-3 px-4 text-center">খাওয়া মোট মিল</th>
+            <th class="py-3 px-4 text-right">নগদ জমা (৳)</th>
+            <th class="py-3 px-4 text-right">পকেটের বাজার (৳)</th>
+            <th class="py-3 px-4 text-right bg-slate-100/60">সদস্যের মোট জমা (৳)</th>
+            <th class="py-3 px-4 text-right text-indigo-700">মিল খরচ (৳)</th>
+            <th class="py-3 px-4 text-right font-bold">ব্যালেন্স / ফেরতযোগ্য (৳)</th>
+            <th class="py-3 px-4 text-center no-print">অ্যাকশন</th>
+          </tr>
+        `;
+      }
 
       const tbody = document.getElementById('summaryTableBody');
       tbody.innerHTML = '';
 
       if (!state.members || state.members.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-6 text-slate-400">কোনো সদস্য পাওয়া যায়নি।</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-6 text-slate-400">এই মাসে কোনো সদস্য পাওয়া যায়নি। উপরে 'সদস্য যোগ করুন' থেকে যোগ করুন।</td></tr>`;
         return;
       }
-
-      const isAdmin = authSession && authSession.role === 'admin';
 
       state.members.forEach(member => {
         const memberDeposit = (state.deposits || [])
@@ -1061,41 +1568,77 @@
 
         const memberMealCost = memberMeals * mealRate;
         const totalPaidByMember = memberDeposit + memberPersonalBazar;
-        const balance = totalPaidByMember - memberMealCost;
+        const memberRentCost = hasRent ? getMemberRentTotal(member.id) : 0;
 
+        let totalMemberCost = memberMealCost;
+        if (hasRent) {
+          totalMemberCost = memberMealCost + memberRentCost;
+        }
+
+        const balance = totalPaidByMember - totalMemberCost;
         const row = document.createElement('tr');
         row.className = "hover:bg-slate-50 transition";
-        row.innerHTML = `
-          <td class="py-3 px-4 font-medium text-slate-800 flex items-center justify-between">
-            <span>${member.name}</span>
-            ${isAdmin ? `<button onclick="openEditModal('member', '${member.id}')" class="text-slate-400 hover:text-indigo-600 no-print ml-2"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>` : ''}
-          </td>
-          <td class="py-3 px-4 text-center font-semibold text-slate-700">
-            <div class="inline-flex items-center gap-1.5 justify-center">
-              <span>${memberMeals.toFixed(1)}</span>
-              ${isAdmin ? `<button onclick="openEditModal('memberMeals', '${member.id}')" class="text-slate-400 hover:text-indigo-600 no-print" title="মিল পরিবর্তন"><i data-lucide="pencil" class="w-3 h-3"></i></button>` : ''}
-            </div>
-          </td>
-          <td class="py-3 px-4 text-right text-emerald-600 font-medium">৳${memberDeposit.toLocaleString()}</td>
-          <td class="py-3 px-4 text-right text-amber-600 font-medium">৳${memberPersonalBazar.toLocaleString()}</td>
-          <td class="py-3 px-4 text-right font-bold text-slate-900 bg-slate-50">৳${totalPaidByMember.toLocaleString()}</td>
-          <td class="py-3 px-4 text-right font-semibold text-indigo-700">৳${memberMealCost.toFixed(2)}</td>
-          <td class="py-3 px-4 text-right font-bold ${balance >= 0 ? 'text-emerald-600' : 'text-red-600'}">
-            ${balance >= 0 ? `+৳${balance.toFixed(2)}` : `-৳${Math.abs(balance).toFixed(2)}`}
-          </td>
-          <td class="py-3 px-4 text-center no-print">
-            <div class="flex items-center justify-center space-x-1">
-              <button onclick="printSingleMemberReport('${member.id}')" class="p-1.5 text-indigo-600 hover:text-white hover:bg-indigo-600 rounded-lg transition" title="স্লিপ প্রিন্ট"><i data-lucide="printer" class="w-4 h-4"></i></button>
-              ${isAdmin ? `<button onclick="deleteMember('${member.id}', '${member.name}')" class="p-1.5 text-rose-500 hover:text-white hover:bg-rose-500 rounded-lg transition" title="সদস্য ডিলিট"><i data-lucide="user-x" class="w-4 h-4"></i></button>` : ''}
-            </div>
-          </td>
-        `;
+
+        if (hasRent) {
+          row.innerHTML = `
+            <td class="py-3 px-4 font-medium text-slate-800 flex items-center justify-between">
+              <span>${member.name}</span>
+              ${isAdmin ? `<button onclick="openEditModal('member', '${member.id}')" class="text-slate-400 hover:text-indigo-600 no-print ml-2"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>` : ''}
+            </td>
+            <td class="py-3 px-4 text-center font-semibold text-slate-700">
+              <div class="inline-flex items-center gap-1.5 justify-center">
+                <span>${memberMeals.toFixed(1)}</span>
+                ${isAdmin ? `<button onclick="openEditModal('memberMeals', '${member.id}')" class="text-slate-400 hover:text-indigo-600 no-print" title="মিল পরিবর্তন"><i data-lucide="pencil" class="w-3 h-3"></i></button>` : ''}
+              </div>
+            </td>
+            <td class="py-3 px-4 text-right font-medium text-indigo-700">৳${memberMealCost.toFixed(2)}</td>
+            <td class="py-3 px-4 text-right font-medium text-rose-600">৳${memberRentCost.toFixed(2)}</td>
+            <td class="py-3 px-4 text-right font-bold text-slate-900 bg-slate-100/60">৳${totalMemberCost.toFixed(2)}</td>
+            <td class="py-3 px-4 text-right font-semibold text-emerald-600">৳${totalPaidByMember.toLocaleString()}</td>
+            <td class="py-3 px-4 text-right font-bold ${balance >= 0 ? 'text-emerald-600' : 'text-rose-600'}">
+              ${balance >= 0 ? `+৳${balance.toFixed(2)}` : `-৳${Math.abs(balance).toFixed(2)}`}
+            </td>
+            <td class="py-3 px-4 text-center no-print">
+              <div class="flex items-center justify-center space-x-1">
+                <button onclick="printSingleMemberReport('${member.id}')" class="p-1.5 text-indigo-600 hover:text-white hover:bg-indigo-600 rounded-lg transition" title="স্লিপ প্রিন্ট"><i data-lucide="printer" class="w-4 h-4"></i></button>
+                ${isAdmin ? `<button onclick="deleteMember('${member.id}', '${member.name}')" class="p-1.5 text-rose-500 hover:text-white hover:bg-rose-500 rounded-lg transition" title="সদস্য ডিলিট"><i data-lucide="user-x" class="w-4 h-4"></i></button>` : ''}
+              </div>
+            </td>
+          `;
+        } else {
+          row.innerHTML = `
+            <td class="py-3 px-4 font-medium text-slate-800 flex items-center justify-between">
+              <span>${member.name}</span>
+              ${isAdmin ? `<button onclick="openEditModal('member', '${member.id}')" class="text-slate-400 hover:text-indigo-600 no-print ml-2"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>` : ''}
+            </td>
+            <td class="py-3 px-4 text-center font-semibold text-slate-700">
+              <div class="inline-flex items-center gap-1.5 justify-center">
+                <span>${memberMeals.toFixed(1)}</span>
+                ${isAdmin ? `<button onclick="openEditModal('memberMeals', '${member.id}')" class="text-slate-400 hover:text-indigo-600 no-print" title="মিল পরিবর্তন"><i data-lucide="pencil" class="w-3 h-3"></i></button>` : ''}
+              </div>
+            </td>
+            <td class="py-3 px-4 text-right text-emerald-600 font-medium">৳${memberDeposit.toLocaleString()}</td>
+            <td class="py-3 px-4 text-right text-amber-600 font-medium">৳${memberPersonalBazar.toLocaleString()}</td>
+            <td class="py-3 px-4 text-right font-bold text-slate-900 bg-slate-50">৳${totalPaidByMember.toLocaleString()}</td>
+            <td class="py-3 px-4 text-right font-semibold text-indigo-700">৳${memberMealCost.toFixed(2)}</td>
+            <td class="py-3 px-4 text-right font-bold ${balance >= 0 ? 'text-emerald-600' : 'text-red-600'}">
+              ${balance >= 0 ? `+৳${balance.toFixed(2)}` : `-৳${Math.abs(balance).toFixed(2)}`}
+            </td>
+            <td class="py-3 px-4 text-center no-print">
+              <div class="flex items-center justify-center space-x-1">
+                <button onclick="printSingleMemberReport('${member.id}')" class="p-1.5 text-indigo-600 hover:text-white hover:bg-indigo-600 rounded-lg transition" title="স্লিপ প্রিন্ট"><i data-lucide="printer" class="w-4 h-4"></i></button>
+                ${isAdmin ? `<button onclick="deleteMember('${member.id}', '${member.name}')" class="p-1.5 text-rose-500 hover:text-white hover:bg-rose-500 rounded-lg transition" title="সদস্য ডিলিট"><i data-lucide="user-x" class="w-4 h-4"></i></button>` : ''}
+              </div>
+            </td>
+          `;
+        }
         tbody.appendChild(row);
       });
 
       lucide.createIcons();
     }
 
+    // Form Event Handlers
     document.getElementById('memberForm').addEventListener('submit', (e) => {
       e.preventDefault();
       if (!authSession || authSession.role !== 'admin') return;
@@ -1106,6 +1649,7 @@
       if (name) {
         state.members = state.members || [];
         state.members.push({ id: Date.now().toString(), name, phone: phone || '' });
+        globalMembers = state.members;
         document.getElementById('memberName').value = '';
         document.getElementById('memberPhone').value = '';
         saveState();
@@ -1162,6 +1706,41 @@
       }
     });
 
+    document.getElementById('rentForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!authSession || authSession.role !== 'admin') return;
+
+      const memberId = document.getElementById('rentMember').value;
+      const selectVal = document.getElementById('rentCategorySelect').value;
+      let category = selectVal;
+      if (selectVal === 'custom') {
+        category = document.getElementById('rentCustomCategory').value.trim() || 'অন্যান্য খরচ';
+      }
+
+      const amount = parseFloat(document.getElementById('rentAmount').value);
+      const date = document.getElementById('rentDate').value;
+      const note = document.getElementById('rentNote').value.trim();
+
+      if (category && amount > 0 && date) {
+        state.rents = state.rents || [];
+        state.rents.push({
+          id: Date.now().toString(),
+          memberId: memberId || 'all',
+          category,
+          amount,
+          date,
+          note: note || '—'
+        });
+        document.getElementById('rentAmount').value = '';
+        document.getElementById('rentNote').value = '';
+        document.getElementById('rentCustomCategory').value = '';
+        document.getElementById('rentCategorySelect').value = 'বাসাভাড়া';
+        toggleCustomRentCategory();
+        saveState();
+        alert('খরচ বা বিল সফলভাবে সেভ হয়েছে!');
+      }
+    });
+
     document.getElementById('mealForm').addEventListener('submit', (e) => {
       e.preventDefault();
       if (!authSession || authSession.role !== 'admin') return;
@@ -1180,19 +1759,63 @@
       }
     });
 
-    function resetAllData() {
+    function resetCurrentPeriodData() {
       if (!authSession || authSession.role !== 'admin') return;
-      if (confirm('সমস্ত ডেটা রিসেট করতে চান? এই প্রক্রিয়াটি ফেরানো যাবে না।')) {
-        state = { members: [], deposits: [], bazars: [], meals: [] };
+      const y = document.getElementById('filterYearSelect').value;
+      const mSelect = document.getElementById('filterMonthSelect');
+      const mName = mSelect.options[mSelect.selectedIndex]?.text || '';
+
+      if (confirm(`আপনি কি নিশ্চিত যে "${mName} ${y}"-এর সমস্ত হিসাব রিসেট করতে চান? অন্য মাসের ডেটা অক্ষত থাকবে।`)) {
+        const savedPass = state.adminPass || "123456";
+        const savedNote = state.permanentNote || "";
+        state = { 
+          members: state.members || [], 
+          deposits: [], 
+          bazars: [], 
+          meals: [], 
+          rents: [], 
+          permanentNote: savedNote, 
+          adminPass: savedPass 
+        };
         saveState();
       }
     }
 
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('mealDate').value = today;
-    document.getElementById('depositDate').value = today;
-    document.getElementById('bazarDate').value = today;
+    // Calculator Script
+    let calcVal = '0';
+    function calcPress(val) {
+      if (calcVal === '0' && val !== '.') {
+        calcVal = val;
+      } else {
+        calcVal += val;
+      }
+      document.getElementById('calcDisplay').value = calcVal;
+    }
+    function calcClear() {
+      calcVal = '0';
+      document.getElementById('calcDisplay').value = calcVal;
+    }
+    function calcBackspace() {
+      if (calcVal.length > 1) {
+        calcVal = calcVal.slice(0, -1);
+      } else {
+        calcVal = '0';
+      }
+      document.getElementById('calcDisplay').value = calcVal;
+    }
+    function calcEqual() {
+      try {
+        calcVal = eval(calcVal).toString();
+        document.getElementById('calcDisplay').value = calcVal;
+      } catch (err) {
+        document.getElementById('calcDisplay').value = 'Error';
+        setTimeout(calcClear, 1500);
+      }
+    }
 
+    // App Initialization
+    initPeriodSelectors();
+    handlePeriodChange();
     applyAuthView();
   </script>
 </body>
